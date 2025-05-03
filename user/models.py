@@ -1,3 +1,4 @@
+import datetime
 import json
 import pickle
 import random
@@ -93,6 +94,7 @@ class User(AbstractUser, PermissionsMixin, PlayerDailyReward, PlayerLuckyWheel):
     gender = models.IntegerField(verbose_name=_('Gender'), default=Gender.UNKNOWN, choices=Gender.choices)
     birth_date = models.DateField(verbose_name=_('Birth date'), null=True, blank=True)
     is_blocked = models.BooleanField(verbose_name=_('Is blocked'), default=False)
+    block_reliefe_time = models.DateTimeField(verbose_name=_('Block reliefe'), null=True, blank=True)
     profile_name = models.CharField(max_length=255, null=True, blank=True, verbose_name=_("Profile name"))
 
     objects = UserManager()
@@ -103,6 +105,19 @@ class User(AbstractUser, PermissionsMixin, PlayerDailyReward, PlayerLuckyWheel):
     class Meta:
         verbose_name = _("User")
         verbose_name_plural = _("Users")
+
+    def unblock(self):
+        self.is_blocked = False
+        self.block_reliefe_time = None
+        self.save()
+
+    def blocked(self) -> datetime.datetime | None:
+        if not self.is_blocked:
+            return None
+        if not self.block_reliefe_time or self.block_reliefe_time < timezone.now():
+            self.unblock()
+            return None
+        return self.block_reliefe_time
 
     def _get_caching_dto(self):
         return {
@@ -416,6 +431,9 @@ class NormalPlayer(Player):
             raise cls.DoesNotExist
         player: NormalPlayer = player.first()
         return player.forget_password(deep_link=deep_link)
+
+    def is_in_game(self):
+        return self.games.count() > 0
 
 
 class SupporterPlayerInfo(BaseModel):

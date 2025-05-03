@@ -44,6 +44,8 @@ class SingletonCachableModel(SingletonModel):
             obj = pickle.loads(cached)
         else:
             obj = cls.objects.first()
+            if not obj:
+                return cls.objects.create()
             cache.set(cls.get_cache_key(), pickle.dumps(obj))
         return obj
 
