@@ -24,6 +24,7 @@ class ShopPackageAdmin(admin.ModelAdmin):
     list_display = ['name', 'price_currency', 'price_amount', 'is_in_discount', 'final_price', ]
     list_filter = ['shop_section', 'markets', 'is_active', ]
     search_fields = ['name', 'sku', ]
+    filter_horizontal = ['currency_items', 'asset_items', 'markets', ]
 
 
 @admin.register(RewardPackage)
@@ -31,6 +32,8 @@ class RewardPackageAdmin(admin.ModelAdmin):
     list_display = ['name', 'reward_type', 'claimable', 'is_active', ]
     list_filter = ['reward_type', 'claimable', 'is_active', ]
     search_fields = ['name', ]
+    filter_horizontal = ['currency_items', 'asset_items', ]
+
 
 
 @admin.register(CurrencyPackageItem)

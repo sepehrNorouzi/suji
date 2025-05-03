@@ -12,7 +12,7 @@ class MatchConfiguration(SingletonCachableModel):
     simultaneous_game = models.BooleanField(default=False, verbose_name=_("Simultaneous availability"))
 
     def __str__(self):
-        return _("Match Configuration")
+        return "Match Configuration"
 
     class Meta:
         verbose_name = _("Match Configuration")
