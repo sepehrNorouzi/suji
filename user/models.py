@@ -138,6 +138,18 @@ class User(AbstractUser, PermissionsMixin, PlayerDailyReward, PlayerLuckyWheel):
             return current.asset if current else None
         return None
 
+    @property
+    def current_avatar_json(self):
+        avatar = self.current_avatar
+        if not avatar:
+            return None
+        return {
+            "avatar": {
+                "id": avatar.id,
+                "config": avatar.config,
+            }
+        }
+
     def save(self, *args, **kwargs):
         super(User, self).save(*args, **kwargs)
         self.cache_user()
@@ -155,6 +167,11 @@ class Player(User):
         if self.is_authenticated:
             refresh = RefreshToken.for_user(self)
             access_token = AccessToken.for_user(self)
+            access_token.payload = {
+                **access_token.payload,
+                "profile_name": self.profile_name,
+                **self.current_avatar_json,
+            }
             token = {
                 'access': str(access_token),
                 'refresh': str(refresh),
