@@ -205,10 +205,17 @@ class Leaderboard(models.Model):
         self.score += score
         self.save()
         types = LeaderboardType.objects.filter(is_active=True, start_time__lte=timezone.now())
-        print(types)
         leaderboard_redis = LeaderboardRedis(settings.REDIS_CLIENT)
         for t in types:
             leaderboard_redis.increment_player_score(t.leaderboard_type_key, self.player.id, score)
 
     def __str__(self):
         return f'{self.player} - {self.score}'
+
+
+    @classmethod
+    def get_player_leaderboard(cls, player):
+        ldb = cls.objects.filter(player=player).first()
+        if not ldb:
+            return cls.objects.create(player=player)
+        return ldb

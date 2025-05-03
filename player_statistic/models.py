@@ -2,6 +2,7 @@ from django.db import models
 from django.utils.translation import gettext_lazy as _
 
 from common.models import BaseModel
+from leaderboard.models import Leaderboard
 
 
 class PlayerLevel(BaseModel):
@@ -72,10 +73,20 @@ class PlayerStatistic(BaseModel):
     def calculate_level(self) -> PlayerLevel:
         return PlayerLevel.get_level_from_xp(xp=self.xp)
 
-    def save(self, *args, **kwargs):
+    def add_xp(self, xp):
+        self.xp += xp
         self.xp = self.calculate_xp()
         if self.xp != self.prev_xp:
             self.level = self.calculate_level()
             self.prev_xp = self.xp
+        self.save()
 
-        super(PlayerStatistic, self).save(*args, **kwargs)
+    def add_score(self, score):
+        self.score += score
+        player_leaderboard: Leaderboard = Leaderboard.get_player_leaderboard(self.player)
+        player_leaderboard.add_score(score)
+        self.save()
+
+    def add_cup(self, cup):
+        self.cup += cup
+        self.save()
