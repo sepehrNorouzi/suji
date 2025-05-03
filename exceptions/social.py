@@ -1,0 +1,2 @@
+class AlreadyFriendError(Exception):
+    pass
