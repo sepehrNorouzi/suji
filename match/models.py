@@ -38,25 +38,25 @@ class PlayerMatchCheckout:
         self.player.shop_info.add_reward_package(self.match_type.winner_package)
 
     def _grant_lose_reward(self):
-        self.player.shop_info.add_reward_package(self.match_type.lose_package)
+        self.player.shop_info.add_reward_package(self.match_type.loser_package)
 
     def _grant_win_xp(self):
         self.player.stats.add_xp(self.match_type.winner_xp)
 
     def _grant_lose_xp(self):
-        self.player.stats.add_xp(self.match_type.lose_xp)
+        self.player.stats.add_xp(self.match_type.loser_xp)
 
     def _grant_win_cup(self):
         self.player.stats.add_cup(self.match_type.winner_cup)
 
     def _grant_lose_cup(self):
-        self.player.stats.add_cup(self.match_type.lose_cup)
+        self.player.stats.add_cup(self.match_type.loser_cup)
 
     def _grant_win_score(self):
         self.player.stats.add_score(self.match_type.winner_score)
 
     def _grant_lose_score(self):
-        self.player.stats.add_score(self.match_type.lose_score)
+        self.player.stats.add_score(self.match_type.loser_score)
 
     def _checkout_player_win(self):
         self._grant_win_xp()

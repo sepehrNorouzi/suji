@@ -67,5 +67,12 @@ class MatchCreateSerializer(serializers.Serializer):
         match.players.add(*players)
         return match
 
+class PlayerMatchFinish(serializers.Serializer):
+    board = serializers.ListField(child=serializers.IntegerField())
+    id = serializers.IntegerField()
+    result = serializers.CharField()
+
 class MatchFinishSerializer(serializers.Serializer):
-    pass
+    players = PlayerMatchFinish(many=True)
+    end_time = serializers.IntegerField()
+    winner = serializers.IntegerField()

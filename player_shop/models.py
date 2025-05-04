@@ -114,7 +114,7 @@ class PlayerWallet(BaseModel):
         self._add_package_base(package, description)
 
     @atomic()
-    def add_reward_pacakge(self, package: RewardPackage, description=None):
+    def add_reward_package(self, package: RewardPackage, description=None):
         if not package.claimable:
             self._add_package_base(package, description)
         else:

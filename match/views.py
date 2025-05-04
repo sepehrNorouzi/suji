@@ -57,8 +57,19 @@ class MatchViewSet(GenericViewSet, mixins.ListModelMixin, mixins.RetrieveModelMi
             return Response(e.args[0], status=status.HTTP_400_BAD_REQUEST)
         return Response(MatchSerializer(match).data, status=status.HTTP_201_CREATED)
 
-    @action(methods=['POST'], detail=False, serializer_class=MatchFinishSerializer, url_name='finish',
+    @action(methods=['POST'], detail=True, serializer_class=MatchFinishSerializer, url_name='finish',
             url_path='finish')
     def finish(self, request, *args, **kwargs):
-        pass
+        serializer = self.serializer_class(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        lookup_url_kwarg = self.lookup_url_kwarg or self.lookup_field
+        filter_kwargs = {self.lookup_field: self.kwargs[lookup_url_kwarg]}
+        match: Match = get_object_or_404(Match.objects.all(), **filter_kwargs)
+        try:
+            match.finish(serializer.validated_data)
+            return Response(status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+
+
 
