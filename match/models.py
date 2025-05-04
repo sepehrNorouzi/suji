@@ -205,7 +205,19 @@ class Match(BaseModel):
         self.create_results(results)
 
     def create_results(self, results):
-        pass
+        match_uuid = self.uuid
+        players = self.players.all()
+        history = {
+            **results,
+            "recorded_players": [
+                {
+                    "id": player.id,
+                    "profile_name": player.profile_name,
+                } for player in players.all()
+            ]
+
+        }
+        MatchResult.create(match_uuid=match_uuid, players=players, history=history, match_type=self.match_type)
 
     def archive_results(self):
         pass
@@ -213,3 +225,23 @@ class Match(BaseModel):
     class Meta:
         verbose_name = _("Match")
         verbose_name_plural = _("Matches")
+
+class MatchResult(BaseModel):
+    match_uuid = models.UUIDField(verbose_name="UUID", default=uuid.uuid4, editable=False)
+    players = models.ManyToManyField(to='user.User', verbose_name=_("Players"), blank=True, related_name="game_results")
+    match_type = models.ForeignKey(to=MatchType, on_delete=models.SET_NULL, verbose_name=_("Match Type"),
+                                   related_name="match_results", null=True, blank=True)
+    history = models.JSONField(verbose_name=_("History"), default=dict)
+
+    class Meta:
+        verbose_name = _("Match Result")
+        verbose_name_plural = _("Match Results")
+
+    def __str__(self):
+        return self.match_uuid
+
+    @classmethod
+    def create(cls, match_uuid, players, match_type, history):
+        obj = cls.objects.create(match_uuid=match_uuid, match_type=match_type, history=history)
+        obj.players.add(*players)
+        return obj
