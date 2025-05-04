@@ -43,7 +43,7 @@ class PlayerAdmin(admin.ModelAdmin):
     fieldsets = [
         (None, {"fields": ("email", "device_id",)}),
         (_('Block info'), {
-            'fields': ('is_blocked',)
+            'fields': ('is_blocked', 'block_reliefe_time')
         }),
         (_('Profile info'), {
             'fields': (

@@ -2,9 +2,11 @@ import datetime
 import uuid
 
 from django.db import models
+from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
 from common.models import BaseModel, SingletonCachableModel
+from match.exceptions import MatchJoinError
 from user.models import User
 
 
@@ -84,17 +86,31 @@ class PlayerMatch:
     def _is_player_blocked(self):
         block_reliefe_time: datetime.datetime = self.player.blocked()
         if block_reliefe_time:
-            self.errors['block'] = f"Player is blocked for {block_reliefe_time.second}."
+            remaining_time = int((block_reliefe_time - timezone.now()).total_seconds())
+            self.errors['block'] = {
+                "message": f"Player is blocked for {remaining_time} seconds.",
+                "block_reliefe_remainder": remaining_time,
+            }
 
     def _simultaneous_game_check(self):
         sim_game_availability = MatchConfiguration.load().simultaneous_game
-        if not sim_game_availability and self.player.is_in_game():
-            self.errors["simultaneous_game"] = "Player is in another game."
+        active_game: Match = self.player.is_in_game()
+        if not sim_game_availability and active_game:
+            self.errors["simultaneous_game"] = {
+                "message": "Player is in another game.",
+                "simultaneous_game": active_game.uuid.__str__(),
+            }
 
     def _can_player_pay(self, entry_cost):
         has_credit = self.player.shop_info.has_enough_credit(currency=entry_cost.currency, amount=entry_cost.amount)
         if not has_credit:
-            self.errors["funds"] = "Insufficient funds."
+            self.errors["funds"] = {
+                "message": "Insufficient funds.",
+                "funds": {
+                    "currency": entry_cost.currency.name,
+                    "amount": entry_cost.amount,
+                }
+            }
 
     def can_join(self) -> tuple[bool, dict]:
         self._simultaneous_game_check()
@@ -107,7 +123,7 @@ class PlayerMatch:
     def pay_match_entry(self):
         can_join, errors = self.can_join()
         if not can_join:
-            return False, errors
+            raise MatchJoinError(errors)
         match_entry_fee = self.match_type.entry_cost
         self.player.shop_info.pay(currency=match_entry_fee.currency, amount=match_entry_fee.amount,
                                   description=self.payment_description)
@@ -177,7 +193,6 @@ class Match(BaseModel):
     def check_out(self, player_data, player):
         player_checkout_manager = PlayerMatchCheckout(player, self.match_type)
         player_checkout_manager.check_out_player(player_data['result'])
-
 
     def finish(self, results):
         players_data = results["players"]

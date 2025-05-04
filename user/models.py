@@ -123,7 +123,7 @@ class User(AbstractUser, PermissionsMixin, PlayerDailyReward, PlayerLuckyWheel):
         return {
             "id": self.id,
             "profile_name": self.profile_name,
-            "avatar": self.current_avatar,
+            "avatar": self.current_avatar_json,
             "username": self.username,
         }
 
@@ -157,7 +157,7 @@ class User(AbstractUser, PermissionsMixin, PlayerDailyReward, PlayerLuckyWheel):
     def current_avatar_json(self):
         avatar = self.current_avatar
         if not avatar:
-            return None
+            return dict()
         return {
             "avatar": {
                 "id": avatar.id,
@@ -168,6 +168,9 @@ class User(AbstractUser, PermissionsMixin, PlayerDailyReward, PlayerLuckyWheel):
     def save(self, *args, **kwargs):
         super(User, self).save(*args, **kwargs)
         self.cache_user()
+
+    def is_in_game(self):
+        return self.games.first()
 
 
 class Player(User):
@@ -432,8 +435,6 @@ class NormalPlayer(Player):
         player: NormalPlayer = player.first()
         return player.forget_password(deep_link=deep_link)
 
-    def is_in_game(self):
-        return self.games.count() > 0
 
 
 class SupporterPlayerInfo(BaseModel):
