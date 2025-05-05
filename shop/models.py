@@ -203,6 +203,7 @@ class RewardPackage(Package):
         INIT_WALLET = 'initial_wallet', _('Initial')
         DAILY_REWARD = 'daily', _('Daily')
         LUCKY_WHEEL = 'lucky_wheel', _('Lucky Wheel')
+        MATCH_REWARD = 'match_reward', _('Match Reward')
 
     reward_type = models.CharField(verbose_name=_("Reward Type"), choices=RewardType.choices, max_length=50)
     claimable = models.BooleanField(verbose_name=_("Claimable"), default=False)

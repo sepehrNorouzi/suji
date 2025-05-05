@@ -4,7 +4,7 @@ from uuid import uuid4
 
 from rest_framework.exceptions import ValidationError
 
-from match.models import MatchType, Match
+from match.models import MatchType, Match, MatchResult
 from shop.serializers import CostSerializer, RewardPackageSerializer
 from user.models import User
 from user.serializers import PlayerProfileSerializer
@@ -72,7 +72,16 @@ class PlayerMatchFinish(serializers.Serializer):
     id = serializers.IntegerField()
     result = serializers.CharField()
 
+class MatchResultSerializer(serializers.ModelSerializer):
+    players = PlayerProfileSerializer(many=True)
+
+    class Meta:
+        model = MatchResult
+        fields = ['id', 'match_uuid', 'match_type', 'history', 'players', ]
+
+
 class MatchFinishSerializer(serializers.Serializer):
-    players = PlayerMatchFinish(many=True)
-    end_time = serializers.IntegerField()
-    winner = serializers.IntegerField()
+    players = PlayerMatchFinish(many=True, write_only=True)
+    end_time = serializers.IntegerField(write_only=True)
+    winner = serializers.IntegerField(write_only=True)
+    result = MatchResultSerializer(read_only=True)

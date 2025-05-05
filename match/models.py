@@ -27,6 +27,15 @@ class PlayerMatchCheckout:
         self.player = player
         self.match_type = match_type
 
+    @staticmethod
+    def create_stat_log_json(xp, score, cup, reward):
+        return {
+            "xp": xp,
+            "score": score,
+            "cup": cup,
+            "reward": reward,
+        }
+
     def _get_checkout_handler(self, result):
         win_lose_handlers = {
             "win": self._checkout_player_win,
@@ -35,44 +44,63 @@ class PlayerMatchCheckout:
         return win_lose_handlers.get(result, self._checkout_player_lose)
 
     def _grant_win_reward(self):
-        self.player.shop_info.add_reward_package(self.match_type.winner_package)
+        added_reward = self.match_type.winner_package
+        self.player.shop_info.add_reward_package(added_reward, "winning match")
+        return added_reward.id
 
     def _grant_lose_reward(self):
-        self.player.shop_info.add_reward_package(self.match_type.loser_package)
+        added_reward = self.match_type.loser_package
+        self.player.shop_info.add_reward_package(self.match_type.loser_package, "losing match")
+        return added_reward.id
 
     def _grant_win_xp(self):
-        self.player.stats.add_xp(self.match_type.winner_xp)
+        added_xp = self.match_type.winner_xp
+        self.player.stats.add_xp(added_xp)
+        return added_xp
 
     def _grant_lose_xp(self):
-        self.player.stats.add_xp(self.match_type.loser_xp)
+        added_xp = self.match_type.loser_xp
+        self.player.stats.add_xp(added_xp)
+        return added_xp
 
     def _grant_win_cup(self):
-        self.player.stats.add_cup(self.match_type.winner_cup)
+        added_cup = self.match_type.winner_cup
+        self.player.stats.add_cup(added_cup)
+        return added_cup
 
     def _grant_lose_cup(self):
-        self.player.stats.add_cup(self.match_type.loser_cup)
+        added_cup = self.match_type.loser_cup
+        self.player.stats.add_cup(added_cup)
+        return added_cup
 
     def _grant_win_score(self):
+        added_score = self.match_type.winner_score
         self.player.stats.add_score(self.match_type.winner_score)
+        return added_score
 
     def _grant_lose_score(self):
+        added_score = self.match_type.loser_score
         self.player.stats.add_score(self.match_type.loser_score)
+        return added_score
 
     def _checkout_player_win(self):
-        self._grant_win_xp()
-        self._grant_win_cup()
-        self._grant_win_score()
-        self._grant_win_reward()
+        xp = self._grant_win_xp()
+        cup = self._grant_win_cup()
+        score = self._grant_win_score()
+        reward = self._grant_win_reward()
+        return self.create_stat_log_json(xp, score, cup, reward)
+
 
     def _checkout_player_lose(self):
-        self._grant_lose_xp()
-        self._grant_lose_cup()
-        self._grant_lose_score()
-        self._grant_lose_reward()
+        xp = self._grant_lose_xp()
+        cup = self._grant_lose_cup()
+        score = self._grant_lose_score()
+        reward = self._grant_lose_reward()
+        return self.create_stat_log_json(xp, score, cup, reward)
 
     def check_out_player(self, result):
         checkout_handler = self._get_checkout_handler(result)
-        checkout_handler()
+        return checkout_handler()
 
 
 class PlayerMatch:
@@ -192,17 +220,20 @@ class Match(BaseModel):
 
     def check_out(self, player_data, player):
         player_checkout_manager = PlayerMatchCheckout(player, self.match_type)
-        player_checkout_manager.check_out_player(player_data['result'])
+        return player_checkout_manager.check_out_player(player_data['result'])
 
     def finish(self, results):
         players_data = results["players"]
+        stat_log = dict()
         for player_data in players_data:
             try:
                 player = User.objects.get(id=player_data["id"])
             except User.DoesNotExist:
                 continue
-            self.check_out(player_data, player)
-        self.create_results(results)
+            stat_log[player.username] = self.check_out(player_data, player)
+        result = self.create_results({**results, "stat_log": stat_log})
+        self.delete()
+        return result
 
     def create_results(self, results):
         match_uuid = self.uuid
@@ -217,7 +248,7 @@ class Match(BaseModel):
             ]
 
         }
-        MatchResult.create(match_uuid=match_uuid, players=players, history=history, match_type=self.match_type)
+        return MatchResult.create(match_uuid=match_uuid, players=players, history=history, match_type=self.match_type)
 
     def archive_results(self):
         pass
@@ -238,7 +269,7 @@ class MatchResult(BaseModel):
         verbose_name_plural = _("Match Results")
 
     def __str__(self):
-        return self.match_uuid
+        return self.match_uuid.__str__()
 
     @classmethod
     def create(cls, match_uuid, players, match_type, history):

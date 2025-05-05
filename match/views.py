@@ -66,9 +66,11 @@ class MatchViewSet(GenericViewSet, mixins.ListModelMixin, mixins.RetrieveModelMi
         filter_kwargs = {self.lookup_field: self.kwargs[lookup_url_kwarg]}
         match: Match = get_object_or_404(Match.objects.all(), **filter_kwargs)
         try:
-            match.finish(serializer.validated_data)
-            return Response(status=status.HTTP_200_OK)
+            result = match.finish(serializer.validated_data)
+            return Response(self.serializer_class({"result": result}).data, status=status.HTTP_201_CREATED)
+
         except Exception as e:
+            print(e)
             return Response(status=status.HTTP_400_BAD_REQUEST)
 
 
