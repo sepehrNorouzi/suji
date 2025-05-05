@@ -34,7 +34,7 @@ class ShopViewSet(GenericViewSet, mixins.ListModelMixin, mixins.RetrieveModelMix
     def get_queryset(self):
         qs = super(ShopViewSet, self).get_queryset()
         market = self.request.user.shop_info.player_market
-        qs = qs.filter(Q(markets__in=[market]) | Q(markets__isnull=True))
+        qs = qs.filter(Q(markets=market) | Q(markets__isnull=True))
         return qs
 
     def get_object(self):
@@ -47,18 +47,16 @@ class ShopViewSet(GenericViewSet, mixins.ListModelMixin, mixins.RetrieveModelMix
             raise Http404
         return obj
 
-    @method_decorator(cache_page(view_cache_timeout, key_prefix='SHOP_PACKAGE_CACHE'))
     def list(self, request, *args, **kwargs):
-        section = self.request.query_params.get('section', None)
+        section: str = self.request.query_params.get('section', None)
         qs = self.get_queryset()
-        if section and isinstance(section, int):
-            qs = qs.filter(section_id=int(section))
+        if section and section.isnumeric():
+            qs = qs.filter(shop_section_id=int(section))
         pagination = self.paginate_queryset(qs)
         serializer = self.get_serializer(pagination, many=True)
         response = self.get_paginated_response(serializer.data)
         return response
 
-    @method_decorator(cache_page(view_cache_timeout, key_prefix='SHOP_SECTION_CACHE'))
     @action(methods=['GET'], url_path='section', url_name='section', detail=False,
             serializer_class=ShopSectionSerializer)
     def sections(self, request, *args, **kwargs):

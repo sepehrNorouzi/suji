@@ -161,7 +161,7 @@ class ShopSection(BaseModel):
 
 class ShopPackage(Package):
     price_currency = models.ForeignKey(to=Currency, verbose_name=_("Price"), on_delete=models.CASCADE)
-    price_amount = models.PositiveIntegerField(verbose_name=_("Price Amount"), default=0)
+    price_amount = models.FloatField(verbose_name=_("Price Amount"), default=0.0)
     discount = models.FloatField(verbose_name=_("Discount"), default=0.0, null=True, blank=True,
                                  validators=[MinValueValidator(0), MaxValueValidator(1)])
     discount_start = models.DateTimeField(verbose_name=_("Discount Start Time"), null=True, blank=True, )

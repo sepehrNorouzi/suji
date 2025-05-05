@@ -40,7 +40,7 @@ class ShopPackageSerializer(serializers.ModelSerializer):
     class Meta:
         model = ShopPackage
         fields = ['id', 'price_currency', 'discount', 'discount_start', 'discount_end', 'shop_section', 'sku',
-                  'has_discount', 'name', 'currency_items', 'asset_items', ]
+                  'has_discount', 'name', 'currency_items', 'asset_items', 'image']
 
     @staticmethod
     def get_has_discount(obj: ShopPackage):
@@ -63,7 +63,7 @@ class RewardPackageSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = RewardPackage
-        fields = ['id', 'name', 'currency_items', 'asset_items', ]
+        fields = ['id', 'name', 'currency_items', 'asset_items', 'image']
 
 
 class DailyRewardPackageSerializer(serializers.ModelSerializer):
