@@ -72,7 +72,7 @@ class PlayerLuckyWheel(models.Model):
 
     def can_spin_lucky_wheel(self, lucky_wheel_cool_down: timedelta) -> tuple:
         next_lucky_wheel_spin = self._next_lucky_wheel(lucky_wheel_cool_down)
-        return next_lucky_wheel_spin < timedelta(0), next_lucky_wheel_spin
+        return next_lucky_wheel_spin <= timedelta(0), next_lucky_wheel_spin
 
     def spin_lucky_wheel(self):
         self.last_lucky_wheel_spin = timezone.now()
