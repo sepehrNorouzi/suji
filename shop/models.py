@@ -121,6 +121,13 @@ class Package(BaseModel):
     vip = models.BooleanField(default=False, verbose_name=_("VIP"))
     vip_duration = models.DurationField(verbose_name=_("VIP Duration"), null=True, blank=True)
 
+    icon_thumbnail = ImageSpecField(
+        source='image',
+        processors=[ResizeToFill(30, 30)],
+        format='PNG',
+        options={'quality': 60}
+    )
+
     def _has_started(self):
         return self.start_time and self.start_time > timezone.now()
 

@@ -5,31 +5,34 @@ from shop.models import Currency, ShopPackage, RewardPackage, CurrencyPackageIte
     ShopConfiguration, Cost, DailyRewardPackage, LuckyWheel, LuckyWheelSection
 
 
-@admin.register(Currency)
-class CurrencyAdmin(admin.ModelAdmin):
-    list_display = ['name', 'type', 'is_active', 'display_thumbnail', ]
-    list_filter = ['is_active', 'type', ]
-    search_fields = ['name', ]
-
+class DisplayThumbnailAdmin:
+    image_field = None
     def display_thumbnail(self, obj):
-        if obj.icon_thumbnail:
-            return format_html('<img src="{}" width="30" height="30" />', obj.icon_thumbnail.url)
+        image = self.image_field or "icon_thumbnail"
+        if hasattr(obj, image) and getattr(obj, image):
+            return format_html('<img src="{}" width="30" height="30" />', getattr(obj, image).url)
         return "-"
 
     display_thumbnail.short_description = 'Icon Thumbnail'
 
+@admin.register(Currency)
+class CurrencyAdmin(admin.ModelAdmin, DisplayThumbnailAdmin):
+    list_display = ['name', 'type', 'is_active', 'display_thumbnail', ]
+    list_filter = ['is_active', 'type', ]
+    search_fields = ['name', ]
+
 
 @admin.register(ShopPackage)
-class ShopPackageAdmin(admin.ModelAdmin):
-    list_display = ['name', 'price_currency', 'price_amount', 'is_in_discount', 'final_price', ]
+class ShopPackageAdmin(admin.ModelAdmin, DisplayThumbnailAdmin):
+    list_display = ['name', 'price_currency', 'price_amount', 'is_in_discount', 'final_price', 'display_thumbnail']
     list_filter = ['shop_section', 'markets', 'is_active', ]
     search_fields = ['name', 'sku', ]
     filter_horizontal = ['currency_items', 'asset_items', 'markets', ]
 
 
 @admin.register(RewardPackage)
-class RewardPackageAdmin(admin.ModelAdmin):
-    list_display = ['name', 'reward_type', 'claimable', 'is_active', ]
+class RewardPackageAdmin(admin.ModelAdmin, DisplayThumbnailAdmin):
+    list_display = ['name', 'reward_type', 'claimable', 'is_active', 'display_thumbnail']
     list_filter = ['reward_type', 'claimable', 'is_active', ]
     search_fields = ['name', ]
     filter_horizontal = ['currency_items', 'asset_items', ]
@@ -100,4 +103,3 @@ class LuckyWheelSectionInline(admin.TabularInline):
 class LuckyWheelAdmin(admin.ModelAdmin):
     inlines = [LuckyWheelSectionInline, ]
     list_display = ['__str__', 'cool_down', 'sections_count', 'accumulated_chance', ]
-
