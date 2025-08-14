@@ -113,6 +113,11 @@ class GuestPlayerRecoverySerializer(serializers.ModelSerializer):
         fields = ['device_id', 'profile_name', 'gender', 'birth_date', 'first_name', 'last_name',
                   'recovery_string', 'password', ]
 
+class GuestConvertSerializer(serializers.Serializer):
+    email = serializers.EmailField(required=True)
+    password = serializers.CharField(write_only=True)
+    profile_name = serializers.CharField(required=False)
+
 
 class PlayerAvatarSerializer(serializers.Serializer):
     id = serializers.IntegerField(read_only=True)

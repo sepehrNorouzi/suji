@@ -8,11 +8,11 @@ class FriendshipRequestSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(read_only=True)
     sender = serializers.SerializerMethodField()
     receiver_id = serializers.IntegerField(write_only=True, required=True)
-    sender_id = serializers.IntegerField(write_only=True, required=True)
+    created_time = serializers.DateTimeField(read_only=True)
 
     class Meta:
         model = FriendshipRequest
-        fields = ['id', 'sender', 'receiver_id', 'sender_id', 'created_time']
+        fields = ['id', 'sender', 'receiver_id', 'created_time']
 
     @staticmethod
     def get_sender(obj):
@@ -20,7 +20,7 @@ class FriendshipRequestSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         return FriendshipRequest.create(
-            sender_id=validated_data['sender_id'],
+            sender_id=self.context['sender_id'],
             receiver_id=validated_data['receiver_id']
         )
 

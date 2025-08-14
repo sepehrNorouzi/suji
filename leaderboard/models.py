@@ -1,5 +1,4 @@
 import json
-import random
 
 from django.conf import settings
 from django.core.exceptions import ValidationError
@@ -115,6 +114,7 @@ class LeaderboardType(models.Model):
     class Meta:
         verbose_name = _("Leaderboard Type")
         verbose_name_plural = _("Leaderboard Types")
+        ordering = ("-duration", 'name')
 
     def archive_leaderboard(self):
         leaderboard_redis = LeaderboardRedis(settings.REDIS_CLIENT)
@@ -195,7 +195,6 @@ class LeaderboardType(models.Model):
         return top_players, surrounding_players, player_rank
 
 
-
 class Leaderboard(models.Model):
     player = models.ForeignKey(to="user.User", on_delete=models.CASCADE, verbose_name=_("Player"),
                                related_name='leaderboard')
@@ -211,7 +210,6 @@ class Leaderboard(models.Model):
 
     def __str__(self):
         return f'{self.player} - {self.score}'
-
 
     @classmethod
     def get_player_leaderboard(cls, player):

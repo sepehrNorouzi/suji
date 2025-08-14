@@ -28,6 +28,7 @@ class Market(BaseModel):
     class Meta:
         verbose_name = _('Market')
         verbose_name_plural = _('Markets')
+        ordering = ['created_time', ]
 
 
 class Currency(BaseModel):
@@ -109,7 +110,7 @@ class Package(BaseModel):
 
     start_time = models.DateTimeField(verbose_name=_("Start Time"), null=True, blank=True, )
     name = models.CharField(verbose_name=_("Name"), unique=True, max_length=255)
-    priority = models.PositiveIntegerField(verbose_name=_("Priority"), help_text=_("1 is More important"))
+    priority = models.PositiveIntegerField(verbose_name=_("Priority"), help_text=_("1 is More important"), default=1)
     expiration_date = models.DateTimeField(verbose_name=_("Expired time"), null=True, blank=True, )
     image = models.ImageField(upload_to='package', null=True, blank=True, verbose_name=_("Image"))
     config = models.JSONField(null=True, blank=True, verbose_name=_("Config"))
@@ -120,13 +121,13 @@ class Package(BaseModel):
                                     default=SupportType.NONE)
     vip = models.BooleanField(default=False, verbose_name=_("VIP"))
     vip_duration = models.DurationField(verbose_name=_("VIP Duration"), null=True, blank=True)
-
     icon_thumbnail = ImageSpecField(
         source='image',
         processors=[ResizeToFill(30, 30)],
         format='PNG',
         options={'quality': 60}
     )
+
 
     def _has_started(self):
         return self.start_time and self.start_time > timezone.now()
@@ -168,7 +169,7 @@ class ShopSection(BaseModel):
 
 class ShopPackage(Package):
     price_currency = models.ForeignKey(to=Currency, verbose_name=_("Price"), on_delete=models.CASCADE)
-    price_amount = models.FloatField(verbose_name=_("Price Amount"), default=0.0)
+    price_amount = models.PositiveIntegerField(verbose_name=_("Price Amount"), default=0)
     discount = models.FloatField(verbose_name=_("Discount"), default=0.0, null=True, blank=True,
                                  validators=[MinValueValidator(0), MaxValueValidator(1)])
     discount_start = models.DateTimeField(verbose_name=_("Discount Start Time"), null=True, blank=True, )
@@ -222,7 +223,7 @@ class RewardPackage(Package):
 
 class ShopConfiguration(SingletonCachableModel):
     player_initial_package = models.ForeignKey(to=RewardPackage, verbose_name=_("Player Initial Package"),
-                                               on_delete=models.RESTRICT, )
+                                               on_delete=models.SET_NULL, null=True, blank=True)
 
     def __str__(self):
         return 'Shop Configuration'
@@ -246,7 +247,7 @@ class DailyRewardPackage(CachableModel):
         ordering = ('day_number',)
 
 
-class LuckyWheel(CachableModel):
+class LuckyWheel(BaseModel):
     name = models.CharField(verbose_name=_("Name"), max_length=255, default="Wheel of fortune")
     cool_down = models.DurationField(verbose_name=_('Cool down'), default=timedelta(days=1))
 

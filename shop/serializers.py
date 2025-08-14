@@ -7,7 +7,7 @@ from shop.models import ShopPackage, Currency, ShopSection, CurrencyPackageItem,
 class MarketSerializer(serializers.ModelSerializer):
     class Meta:
         model = Market
-        fields = ['id', 'name']
+        fields = ['id', 'name', 'last_version']
 
 
 class CurrencySerializer(serializers.ModelSerializer):
@@ -48,7 +48,10 @@ class ShopPackageSerializer(serializers.ModelSerializer):
 
     @staticmethod
     def get_shop_section(obj: ShopPackage):
-        return obj.shop_section.name
+        section = obj.shop_section
+        if section:
+            return obj.shop_section.name
+        return None
 
 
 class ShopSectionSerializer(serializers.ModelSerializer):
@@ -63,7 +66,7 @@ class RewardPackageSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = RewardPackage
-        fields = ['id', 'name', 'currency_items', 'asset_items', 'image']
+        fields = ['id', 'name', 'currency_items', 'asset_items', 'reward_type']
 
 
 class DailyRewardPackageSerializer(serializers.ModelSerializer):
@@ -91,7 +94,7 @@ class LuckyWheelRetrieveSerializer(serializers.ModelSerializer):
 
     @staticmethod
     def get_sections(obj: LuckyWheel):
-        return LuckyWheelSectionSerializer(obj.sections, many=True).data
+        return LuckyWheelSectionSerializer(obj.sections.filter(is_active=True), many=True).data
 
 class CostSerializer(serializers.ModelSerializer):
     currency = CurrencySerializer()

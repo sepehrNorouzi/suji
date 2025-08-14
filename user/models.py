@@ -1,7 +1,7 @@
-import datetime
 import json
 import pickle
 import random
+import datetime
 from datetime import timedelta
 from typing import Union
 
@@ -9,7 +9,7 @@ from django.conf import settings
 from django.contrib.auth.models import PermissionsMixin, AbstractUser
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
-from django.db import models
+from django.db import models, connection
 from django.db.models import QuerySet
 from django.db.transaction import atomic
 from django.template.loader import render_to_string
@@ -20,7 +20,7 @@ from rest_framework_simplejwt.tokens import RefreshToken, AccessToken
 
 from django.conf import settings
 from common.models import BaseModel
-from exceptions.user import ReVerifyException
+from exceptions.user import ReVerifyException, EmailAlreadyTakenError
 from shop.choices import AssetType
 from user.choices import Gender
 from user.managers import UserManager, NormalPlayerManager, GuestPlayerManager
@@ -119,6 +119,7 @@ class User(AbstractUser, PermissionsMixin, PlayerDailyReward, PlayerLuckyWheel):
             return None
         return self.block_reliefe_time
 
+
     def _get_caching_dto(self):
         return {
             "id": self.id,
@@ -148,16 +149,17 @@ class User(AbstractUser, PermissionsMixin, PlayerDailyReward, PlayerLuckyWheel):
 
     @property
     def current_avatar(self):
-        if hasattr(self, 'shop_info'):
-            current = self.shop_info.current_asset(AssetType.AVATAR)
-            return current.asset if current else None
-        return None
+        shop_info = getattr(self, "shop_info", None)
+        if not shop_info:
+            return None
+        current = shop_info.current_asset(AssetType.AVATAR)
+        return current.asset if current else None
 
     @property
     def current_avatar_json(self):
         avatar = self.current_avatar
         if not avatar:
-            return dict()
+            return None
         return {
             "avatar": {
                 "id": avatar.id,
@@ -169,8 +171,17 @@ class User(AbstractUser, PermissionsMixin, PlayerDailyReward, PlayerLuckyWheel):
         super(User, self).save(*args, **kwargs)
         self.cache_user()
 
-    def is_in_game(self):
-        return self.games.first()
+    @classmethod
+    def get_random_users(cls, count):
+        if connection.vendor == 'postgresql':
+            return cls.objects.extra(select={'random': 'RANDOM()'}).order_by('random')[:count]
+        elif connection.vendor == 'mysql':
+            return cls.objects.extra(select={'random': 'RAND()'}).order_by('random')[:count]
+        else:
+            return cls.objects.order_by('?')[:count]
+
+    def is_in_match(self):
+        return self.matches.filter(is_active=True, owner_id=self.id).exists()
 
 
 class Player(User):
@@ -185,11 +196,6 @@ class Player(User):
         if self.is_authenticated:
             refresh = RefreshToken.for_user(self)
             access_token = AccessToken.for_user(self)
-            access_token.payload = {
-                **access_token.payload,
-                "profile_name": self.profile_name,
-                **self.current_avatar_json,
-            }
             token = {
                 'access': str(access_token),
                 'refresh': str(refresh),
@@ -268,6 +274,9 @@ class GuestPlayer(Player):
 
     @atomic()
     def convert_to_normal_player(self, email: str, password: str, profile_name: str = None):
+        existing_email = NormalPlayer.objects.filter(email=email).first()
+        if existing_email:
+            raise EmailAlreadyTakenError(_("This email is already is use"))
         user = self.user_ptr
         normal_player = NormalPlayer(
             user_ptr=user,
@@ -434,7 +443,6 @@ class NormalPlayer(Player):
             raise cls.DoesNotExist
         player: NormalPlayer = player.first()
         return player.forget_password(deep_link=deep_link)
-
 
 
 class SupporterPlayerInfo(BaseModel):

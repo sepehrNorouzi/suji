@@ -9,11 +9,8 @@ class IsGameServer(BasePermission):
     message = _("Server key is required.")
 
     def has_permission(self, request, view):
-        if 'test' in sys.argv:
-            return True
-
         headers = request.headers
-        server_key = headers.get('X-Suji-Server-Key')
+        server_key = headers.get('X-Game-Server-Key')
         if not server_key:
             return False
-        return server_key == os.environ.get('SUJI_SERVER_KEY')
+        return server_key == os.environ.get('GAME_SERVER_KEY')
