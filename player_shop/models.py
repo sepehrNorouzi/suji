@@ -98,15 +98,6 @@ class PlayerWallet(BaseModel):
                                                              asset=item))
         self.asset_ownerships.bulk_create(assets)
         PlayerWalletLog.objects.bulk_create(player_wallet_log_objects)
-        if package.has_supported:
-            self.player.supports.create(reason=package.support_type)
-        if package.vip:
-            player_vip, c = self.player.vip.get_or_create()
-            if c or player_vip.is_expired():
-                player_vip.expiration_date = timezone.now() + package.vip_duration
-            else:
-                player_vip.expiration_date = player_vip.expiration_date + package.vip_duration
-            player_vip.save()
 
     @atomic()
     def add_shop_package(self, package: ShopPackage, description=None):

@@ -1,7 +1,6 @@
-import json
-import pickle
-import random
 import datetime
+import json
+import random
 from datetime import timedelta
 from typing import Union
 
@@ -18,7 +17,6 @@ from django.utils.html import strip_tags
 from django.utils.translation import gettext_lazy as _
 from rest_framework_simplejwt.tokens import RefreshToken, AccessToken
 
-from django.conf import settings
 from common.models import BaseModel
 from exceptions.user import ReVerifyException, EmailAlreadyTakenError
 from shop.choices import AssetType
@@ -119,7 +117,6 @@ class User(AbstractUser, PermissionsMixin, PlayerDailyReward, PlayerLuckyWheel):
             return None
         return self.block_reliefe_time
 
-
     def _get_caching_dto(self):
         return {
             "id": self.id,
@@ -181,11 +178,10 @@ class User(AbstractUser, PermissionsMixin, PlayerDailyReward, PlayerLuckyWheel):
             return cls.objects.order_by('?')[:count]
 
     def is_in_match(self):
-        return self.matches.filter(is_active=True, owner_id=self.id).exists()
+        return self.match_set.filter(is_active=True).exists()
 
 
 class Player(User):
-
     class Meta:
         abstract = True
 

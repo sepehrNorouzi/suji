@@ -74,27 +74,26 @@ class Match(BaseModel):
     players = models.ManyToManyField(to='user.User', verbose_name=_("Players"), blank=True)
     match_type = models.ForeignKey(to=MatchType, on_delete=models.PROTECT, verbose_name=_("Match Type"),
                                    related_name="matches")
-    owner = models.ForeignKey(to="user.User", verbose_name=_("Owner"), on_delete=models.CASCADE, related_name="matches")
 
     def __str__(self):
-        return f'{self.owner} - {self.match_type}'
+        return f'{",".join(self.players.values_list("id", flat=True))} - {self.match_type}'
 
     @classmethod
     def get_random_players(cls, count: int):
         return User.get_random_users(count=count)
 
     @classmethod
-    def start(cls, match_uuid, owner, players, match_type: MatchType):
+    def start(cls, match_uuid, players, match_type: MatchType):
         match_uuid = uuid.uuid4() if not match_uuid else match_uuid
         players = list(players)
-        can_join, errors = match_type.can_join(player=owner)
-        if not can_join:
-            raise MatchJoinError(errors)
-        match_type.pay_match_entry(player=owner)
-        random_players = cls.get_random_players(count=4-len(players)) # Make variable
-        all_players = players + list(random_players)
-        match =  cls.objects.create(uuid=match_uuid, match_type=match_type, owner=owner)
-        match.players.set(all_players)
+        for player in players:
+            can_join, errors = match_type.can_join(player=player)
+            if not can_join:
+                raise MatchJoinError(errors)
+            match_type.pay_match_entry(player=player)
+            
+        match = cls.objects.create(uuid=match_uuid, match_type=match_type)
+        match.players.set(players)
         return match
 
     def check_out(self, player_data, player):
@@ -133,8 +132,8 @@ class Match(BaseModel):
         pass
 
     @classmethod
-    def get_player_current_match(cls, owner):
-        return cls.objects.filter(owner=owner).first()
+    def get_player_current_match(cls, player):
+        return cls.objects.filter(players=player).first()
 
     class Meta:
         verbose_name = _("Match")

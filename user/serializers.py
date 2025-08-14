@@ -41,11 +41,10 @@ class NormalPlayerVerifySerializer(serializers.ModelSerializer):
 class NormalPlayerSignInSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
     email = serializers.EmailField(required=True)
-    vip = serializers.SerializerMethodField()
 
     class Meta:
         model = NormalPlayer
-        fields = ['email', 'profile_name', 'gender', 'birth_date', 'first_name', 'last_name', 'password', 'vip', ]
+        fields = ['email', 'profile_name', 'gender', 'birth_date', 'first_name', 'last_name', 'password', ]
 
 
 class NormalPlayerForgetPasswordRequestSerializer(serializers.Serializer):
@@ -116,7 +115,6 @@ class PlayerProfileSerializer(serializers.Serializer):
     profile_name = serializers.CharField(read_only=True)
     gender = serializers.CharField(read_only=True)
     birth_date = serializers.DateField(read_only=True)
-    vip = serializers.SerializerMethodField()
     current_avatar = serializers.SerializerMethodField(read_only=True)
 
     @staticmethod

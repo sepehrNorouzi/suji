@@ -73,7 +73,6 @@ class PlayerMatchCheckout:
         reward = self._grant_win_reward()
         return self.create_stat_log_json(xp, score, cup, reward)
 
-
     def _checkout_player_lose(self):
         xp = self._grant_lose_xp()
         cup = self._grant_lose_cup()
