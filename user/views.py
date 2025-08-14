@@ -9,12 +9,11 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from exceptions.user import EmailAlreadyTakenError
-from user.models import NormalPlayer, GuestPlayer, User, SupporterPlayerInfo
+from user.models import NormalPlayer, GuestPlayer, User
 from user.permissions import IsGuestPlayer
 from user.serializers import NormalPlayerSignUpSerializer, NormalPlayerVerifySerializer, NormalPlayerSignInSerializer, \
     GuestPlayerSignUpSerializer, GuestPlayerSignInSerializer, GuestPlayerRecoverySerializer, \
     NormalPlayerForgetPasswordRequestSerializer, NormalPlayerResetPasswordSerializer, PlayerProfileSerializer, \
-    SupporterPlayerSerializer, SupporterPanelUseSerializer, SupporterRetrieveSerializer, \
     PlayerProfileSelfRetrieveSerializer, GuestConvertSerializer
 from utils.random_functions import generate_random_string
 
@@ -172,48 +171,3 @@ class PlayerProfileView(viewsets.GenericViewSet, mixins.ListModelMixin, mixins.R
         player = self.request.user
         serializer = PlayerProfileSelfRetrieveSerializer(player)
         return Response(data=serializer.data, status=status.HTTP_200_OK)
-
-    @action(methods=['GET'], detail=False, url_path='supports', url_name='supports',
-            serializer_class=SupporterRetrieveSerializer)
-    def self_support_package(self, request, *args, **kwargs):
-        user = self.request.user
-        packages = user.supports.filter(is_active=True)
-        paginator = PageNumberPagination()
-        page = paginator.paginate_queryset(packages, request)
-        return paginator.get_paginated_response(self.serializer_class(page, many=True).data)
-
-    @action(methods=['GET'], detail=True, url_path='supports', url_name='supports',
-            serializer_class=SupporterRetrieveSerializer)
-    def player_support_package(self, request, *args, **kwargs):
-        player = self.get_object()
-        packages = player.supports.filter(visible=True, approved=True, is_active=True, used=True)
-        paginator = PageNumberPagination()
-        page = paginator.paginate_queryset(packages, request)
-        return paginator.get_paginated_response(self.serializer_class(page, many=True).data)
-
-
-class SupporterPlayerView(viewsets.GenericViewSet, mixins.ListModelMixin, mixins.RetrieveModelMixin):
-    queryset = SupporterPlayerInfo.objects.filter(is_active=True, approved=True, visible=True)
-    serializer_class = SupporterPlayerSerializer
-    pagination_class = PageNumberPagination
-    permission_classes = [IsAuthenticated, ]
-
-    def get_queryset(self):
-        return SupporterPlayerInfo.objects.filter(is_active=True, approved=True, visible=True).order_by(
-            "-approval_date")
-
-    def get_usable_object(self) -> SupporterPlayerInfo:
-        queryset = SupporterPlayerInfo.objects.filter(player=self.request.user, used=False)
-        lookup_url_kwarg = self.lookup_url_kwarg or self.lookup_field
-        filter_kwargs = {self.lookup_field: self.kwargs[lookup_url_kwarg]}
-        obj = get_object_or_404(queryset, **filter_kwargs)
-        return obj
-
-    @action(methods=['POST'], detail=True, url_name='use', url_path='use', serializer_class=SupporterPanelUseSerializer)
-    def use(self, request, *args, **kwargs):
-        usable_object: SupporterPlayerInfo = self.get_usable_object()
-        serializer = self.serializer_class(data=self.request.data)
-        serializer.is_valid(raise_exception=True)
-        usable_object.use(data={**serializer.validated_data})
-        usable_object.refresh_from_db()
-        return Response(data=SupporterPlayerSerializer(usable_object).data, status=status.HTTP_202_ACCEPTED)

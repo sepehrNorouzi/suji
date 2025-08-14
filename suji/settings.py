@@ -64,6 +64,7 @@ ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '').split(',')
 PROJECT_NAME = os.environ.get('PROJECT_NAME', "suji")
 
 INSTALLED_APPS = [
+    'user.apps.UserConfig',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -75,7 +76,6 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     "django_celery_results",
     "django_celery_beat",
-    'user.apps.UserConfig',
     'common.apps.CommonConfig',
     'shop.apps.ShopConfig',
     'player_shop.apps.PlayerShopConfig',

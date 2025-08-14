@@ -1,6 +1,6 @@
 from rest_framework import serializers
 
-from user.models import NormalPlayer, GuestPlayer, VipPlayer, SupporterPlayerInfo, Player
+from user.models import NormalPlayer, GuestPlayer, Player
 
 
 class NormalPlayerSignUpSerializer(serializers.ModelSerializer):
@@ -38,12 +38,6 @@ class NormalPlayerVerifySerializer(serializers.ModelSerializer):
         return obj.get_token()
 
 
-class VipSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = VipPlayer
-        fields = ['expiration_date', 'id']
-
-
 class NormalPlayerSignInSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
     email = serializers.EmailField(required=True)
@@ -52,13 +46,6 @@ class NormalPlayerSignInSerializer(serializers.ModelSerializer):
     class Meta:
         model = NormalPlayer
         fields = ['email', 'profile_name', 'gender', 'birth_date', 'first_name', 'last_name', 'password', 'vip', ]
-
-    @staticmethod
-    def get_vip(obj: NormalPlayer):
-        vip = obj.vip.first()
-        if vip and not vip.is_expired():
-            return VipSerializer(vip).data
-        return None
 
 
 class NormalPlayerForgetPasswordRequestSerializer(serializers.Serializer):
@@ -137,13 +124,6 @@ class PlayerProfileSerializer(serializers.Serializer):
         current = obj.current_avatar
         return PlayerAvatarSerializer(obj.current_avatar).data if current else None
 
-    @staticmethod
-    def get_vip(obj):
-        vip = obj.vip.first()
-        if vip:
-            return not vip.is_expired()
-        return False
-
 
 class PlayerProfileSelfRetrieveSerializer(PlayerProfileSerializer):
     daily_reward_streak = serializers.IntegerField(read_only=True)
@@ -155,28 +135,6 @@ class PlayerProfileSelfRetrieveSerializer(PlayerProfileSerializer):
     @staticmethod
     def get_invites_count(obj: Player):
         return obj.invite_count()
-
-
-class SupporterPlayerSerializer(serializers.ModelSerializer):
-    player = PlayerProfileSerializer()
-
-    class Meta:
-        model = SupporterPlayerInfo
-        exclude = ['created_time', 'is_active', 'updated_time']
-
-
-class SupporterRetrieveSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = SupporterPlayerInfo
-        fields = ['reason', 'message', 'instagram_link', 'telegram_link', 'rubika_link', 'id']
-
-
-class SupporterPanelUseSerializer(serializers.Serializer):
-    message = serializers.CharField(required=False)
-    instagram_link = serializers.CharField(required=False)
-    telegram_link = serializers.CharField(required=False)
-    website_link = serializers.CharField(required=False)
-    visible = serializers.BooleanField(default=False)
 
 
 class PlayerCacheSerializer(PlayerProfileSerializer):

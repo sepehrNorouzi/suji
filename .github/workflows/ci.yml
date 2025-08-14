@@ -1,0 +1,359 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [ main, master, stage ]
+  pull_request:
+    branches: [ main, master, stage ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_USER: postgres
+          POSTGRES_DB: suji_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+      
+      mongodb:
+        image: mongo:latest
+        env:
+          MONGO_INITDB_ROOT_USERNAME: root
+          MONGO_INITDB_ROOT_PASSWORD: password
+        options: >-
+          --health-cmd "mongosh --eval 'db.runCommand({ping: 1})'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 27017:27017
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: Cache pip packages
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install coverage pytest-django pytest-cov
+
+    - name: Create test environment file
+      run: |
+        cat > .env << EOF
+        DEBUG=True
+        SECRET_KEY=test-secret-key-for-ci-only-not-secure
+        POSTGRES_DB=suji_test
+        POSTGRES_USER=postgres
+        POSTGRES_PASSWORD=postgres
+        POSTGRES_HOST=localhost
+        POSTGRES_PORT=5432
+        REDIS_URI=redis://localhost:6379/0
+        REDIS_HOST=localhost
+        REDIS_PORT=6379
+        REDIS_PASSWORD=
+        REDIS_DB=0
+        REDIS_TIMEOUT=3600
+        REDIS_KEY_PREFIX=suji
+        REDIS_PASSWORD_REQUIRED=False
+        MONGO_DB_URI=mongodb://root:password@localhost:27017/suji_test?authSource=admin
+        EMAIL_BACKEND=django.core.mail.backends.console.EmailBackend
+        EMAIL_HOST=localhost
+        EMAIL_PORT=587
+        EMAIL_USE_TLS=False
+        EMAIL_HOST_USER=test@example.com
+        EMAIL_HOST_PASSWORD=testpassword
+        DEFAULT_FROM_EMAIL=test@example.com
+        ENCRYPTION_KEY=$(python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")
+        PROJECT_NAME=suji
+        ALLOWED_HOSTS=localhost,127.0.0.1
+        ACCESS_TOKEN_LIFETIME=60
+        REFRESH_TOKEN_LIFETIME=1
+        OTP_EXPIRATION_TIME=300
+        DEFAULT_PAGE_SIZE=20
+        CELERY_BROKER_URL=redis://localhost:6379/0
+        CELERY_RESULTS_BACKEND=redis://localhost:6379/0
+        GAME_SERVER_KEY=test-game-server-key
+        CONN_MAX_AGE=60
+        GUNICORN_WORKERS=2
+        GUNICORN_TIMEOUT=30
+        GUNICORN_PORT=8000
+        FLOWER_USER=admin
+        FLOWER_PASSWORD=admin
+        MINIO_ROOT_USER=minioadmin
+        MINIO_ROOT_PASSWORD=minioadmin
+        MINIO_BUCKET_NAME=suji-test
+        MINIO_CONSOLE_PORT=9001
+        AWS_ACCESS_KEY_ID=minioadmin
+        AWS_SECRET_ACCESS_KEY=minioadmin
+        AWS_STORAGE_BUCKET_NAME=suji-test
+        AWS_S3_ENDPOINT_URL=http://localhost:9000
+        MEDIA_ROOT=/tmp/media
+        MEDIA_URL=/media/
+        EOF
+
+    - name: Run Django system checks
+      run: |
+        python manage.py check --deploy
+
+    - name: Run migrations
+      run: |
+        python manage.py migrate
+
+    - name: Run tests with coverage
+      run: |
+        coverage run --source='.' manage.py test
+        coverage report --show-missing
+        coverage xml
+
+    - name: Check coverage threshold
+      run: |
+        echo "Checking coverage threshold..."
+        coverage report --fail-under=75
+        echo "✅ Coverage meets the required 75% threshold"
+
+    - name: Upload coverage reports to GitHub
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-report
+        path: |
+          coverage.xml
+          htmlcov/
+
+  security-scan:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+
+    - name: Install security tools
+      run: |
+        python -m pip install --upgrade pip
+        pip install safety bandit
+
+    - name: Run safety check (dependency vulnerabilities)
+      run: |
+        safety check --file requirements.txt --output json || true
+
+    - name: Run bandit security scan
+      run: |
+        bandit -r . -f json -o bandit-report.json || true
+
+    - name: Upload security reports
+      uses: actions/upload-artifact@v4
+      with:
+        name: security-reports
+        path: |
+          bandit-report.json
+
+  docker-build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Build Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: ./Dockerfile
+        push: false
+        tags: suji:test
+        load: true
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Test Docker image
+      run: |
+        # Create a minimal .env file for the container
+        cat > .env.docker << EOF
+        DEBUG=True
+        SECRET_KEY=test-secret-key-for-ci-only-not-secure
+        POSTGRES_DB=suji_test
+        POSTGRES_USER=postgres
+        POSTGRES_PASSWORD=postgres
+        POSTGRES_HOST=localhost
+        POSTGRES_PORT=5432
+        REDIS_URI=redis://localhost:6379/0
+        REDIS_HOST=localhost
+        REDIS_PORT=6379
+        REDIS_PASSWORD=
+        REDIS_DB=0
+        REDIS_TIMEOUT=3600
+        REDIS_KEY_PREFIX=suji
+        REDIS_PASSWORD_REQUIRED=False
+        MONGO_DB_URI=mongodb://localhost:27017/suji_test
+        EMAIL_BACKEND=django.core.mail.backends.console.EmailBackend
+        EMAIL_HOST=localhost
+        EMAIL_PORT=587
+        EMAIL_USE_TLS=False
+        EMAIL_HOST_USER=test@example.com
+        EMAIL_HOST_PASSWORD=testpassword
+        DEFAULT_FROM_EMAIL=test@example.com
+        ENCRYPTION_KEY=$(python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")
+        PROJECT_NAME=suji
+        ALLOWED_HOSTS=localhost,127.0.0.1
+        ACCESS_TOKEN_LIFETIME=60
+        REFRESH_TOKEN_LIFETIME=1
+        OTP_EXPIRATION_TIME=300
+        DEFAULT_PAGE_SIZE=20
+        CELERY_BROKER_URL=redis://localhost:6379/0
+        CELERY_RESULTS_BACKEND=redis://localhost:6379/0
+        GAME_SERVER_KEY=test-game-server-key
+        CONN_MAX_AGE=60
+        AWS_ACCESS_KEY_ID=minioadmin
+        AWS_SECRET_ACCESS_KEY=minioadmin
+        AWS_STORAGE_BUCKET_NAME=suji-test
+        AWS_S3_ENDPOINT_URL=http://localhost:9000
+        MEDIA_ROOT=/tmp/media
+        MEDIA_URL=/media/
+        EOF
+        
+        # Test the Docker image
+        docker run --rm --env-file .env.docker suji:test python manage.py check --deploy
+
+  docker-compose-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Create test environment file
+      run: |
+        cat > .env << EOF
+        DEBUG=True
+        SECRET_KEY=test-secret-key-for-ci-only-not-secure
+        POSTGRES_DB=suji_test
+        POSTGRES_USER=postgres
+        POSTGRES_PASSWORD=postgres
+        POSTGRES_HOST=db
+        POSTGRES_PORT=5432
+        REDIS_URI=redis://:test-redis-password@redis:6379/0
+        REDIS_HOST=redis
+        REDIS_PORT=6379
+        REDIS_PASSWORD=test-redis-password
+        REDIS_DB=0
+        REDIS_TIMEOUT=3600
+        REDIS_KEY_PREFIX=suji
+        MONGO_INITDB_ROOT_USERNAME=root
+        MONGO_INITDB_ROOT_PASSWORD=password
+        MONGO_DB_URI=mongodb://root:password@mongodb:27017/suji_test?authSource=admin
+        EMAIL_BACKEND=django.core.mail.backends.console.EmailBackend
+        EMAIL_HOST=localhost
+        EMAIL_PORT=587
+        EMAIL_USE_TLS=False
+        EMAIL_HOST_USER=test@example.com
+        EMAIL_HOST_PASSWORD=testpassword
+        DEFAULT_FROM_EMAIL=test@example.com
+        ENCRYPTION_KEY=$(python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")
+        PROJECT_NAME=suji
+        ALLOWED_HOSTS=localhost,127.0.0.1
+        ACCESS_TOKEN_LIFETIME=60
+        REFRESH_TOKEN_LIFETIME=1
+        OTP_EXPIRATION_TIME=300
+        DEFAULT_PAGE_SIZE=20
+        CELERY_BROKER_URL=redis://:test-redis-password@redis:6379/0
+        CELERY_RESULTS_BACKEND=redis://:test-redis-password@redis:6379/0
+        GAME_SERVER_KEY=test-game-server-key
+        CONN_MAX_AGE=60
+        GUNICORN_WORKERS=2
+        GUNICORN_TIMEOUT=30
+        GUNICORN_PORT=8000
+        FLOWER_USER=admin
+        FLOWER_PASSWORD=admin
+        MINIO_ROOT_USER=minioadmin
+        MINIO_ROOT_PASSWORD=minioadmin
+        MINIO_BUCKET_NAME=suji-test
+        MINIO_CONSOLE_PORT=9001
+        AWS_ACCESS_KEY_ID=minioadmin
+        AWS_SECRET_ACCESS_KEY=minioadmin
+        AWS_STORAGE_BUCKET_NAME=suji-test
+        AWS_S3_ENDPOINT_URL=http://minio:9000
+        MEDIA_ROOT=/app/media
+        MEDIA_URL=/media/
+        EOF
+
+    - name: Build and test with Docker Compose
+      run: |
+        docker compose -f docker-compose.yml build
+        docker compose -f docker-compose.yml up -d db redis mongodb
+        
+        # Wait for services to be ready
+        sleep 30
+        
+        # Run migrations and basic tests
+        docker compose -f docker-compose.yml run --rm web python manage.py migrate
+        docker compose -f docker-compose.yml run --rm web python manage.py check
+        
+        # Cleanup
+        docker compose -f docker-compose.yml down -v
+
+  notify-success:
+    runs-on: ubuntu-latest
+    needs: [test, security-scan, docker-build, docker-compose-test]
+    if: success()
+
+    steps:
+    - name: Notify success
+      run: |
+        echo "🎉 All CI checks passed successfully!"
+        echo "✅ Tests completed with coverage check"
+        echo "✅ Security scan completed"
+        echo "✅ Docker build successful"
+        echo "✅ Docker Compose test passed"
+
+  notify-failure:
+    runs-on: ubuntu-latest
+    needs: [test, security-scan, docker-build, docker-compose-test]
+    if: failure()
+
+    steps:
+    - name: Notify failure
+      run: |
+        echo "❌ CI pipeline failed"
+        echo "Please check the logs above for details"
+        exit 1
