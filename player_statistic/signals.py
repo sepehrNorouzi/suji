@@ -7,7 +7,7 @@ from user.models import NormalPlayer, GuestPlayer
 
 def user_stat_init(instance, created):
     if created:
-        PlayerStatistic.objects.create(player=instance)
+        PlayerStatistic.objects.get_or_create(player=instance)
 
 
 @receiver(signal=post_save, sender=NormalPlayer)

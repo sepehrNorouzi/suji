@@ -77,6 +77,7 @@ class PlayerWalletViewSet(viewsets.GenericViewSet, mixins.ListModelMixin):
 class PlayerDailyRewardViewSet(viewsets.GenericViewSet, ):
     queryset = PlayerWallet.objects.filter(is_active=True)
     serializer_class = PlayerWalletSerializer
+    permission_classes = [IsAuthenticated, ]
 
     @action(methods=['POST'], url_name="claim", url_path="claim", detail=False)
     def claim(self, request, *args, **kwargs):

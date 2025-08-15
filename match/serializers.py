@@ -36,7 +36,7 @@ class MatchCreateSerializer(serializers.Serializer):
     players = serializers.ListField(child=serializers.IntegerField())
     match_type = serializers.IntegerField()
     uuid = serializers.UUIDField(default=uuid4)
-
+    owner_id = serializers.IntegerField()
 
     def validate_players(self, data):
         players = User.objects.filter(id__in=data)
@@ -52,23 +52,15 @@ class MatchCreateSerializer(serializers.Serializer):
             raise ValidationError('Match type is invalid.')
         return match_type.first()
 
-    def validate(self, attrs):
-        return super().validate(attrs)
-
     def create(self, validated_data):
-        match_uuid: str = validated_data['uuid']
+        match_uuid: str = validated_data['uuid'].__str__()
         match_type: MatchType = validated_data['match_type']
         players: QuerySet[User] = validated_data['players']
-        match: Match = Match.objects.create(uuid=match_uuid, match_type=match_type)
-
-        for player in players:
-            match_type.pay_match_entry(player)
-
-        match.players.add(*players)
+        owner = User.objects.filter(id=validated_data['owner_id']).first()
+        match = Match.start(owner=owner, players=players, match_type=match_type, match_uuid=match_uuid)
         return match
 
 class PlayerMatchFinish(serializers.Serializer):
-    board = serializers.ListField(child=serializers.IntegerField())
     id = serializers.IntegerField()
     result = serializers.CharField()
 

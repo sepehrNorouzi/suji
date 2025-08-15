@@ -1,0 +1,162 @@
+services:
+  db:
+    container_name: db
+    image: postgres:17.4-alpine
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - suji_postgres_data:/var/lib/postgresql/data/
+    expose:
+      - "5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $POSTGRES_USER"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    user: postgres
+
+  mongodb:
+    image: mongo
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - suji_mongo_data:/data/db
+    expose:
+      - "27017"
+    healthcheck:
+      test: "echo 'db.runCommand({ ping: 1 })' | mongosh --quiet"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    user: mongodb
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: >
+      sh -c "
+      python manage.py migrate &&
+      python manage.py collectstatic --no-input &&
+      (python manage.py compilemessages || echo 'No translation files found or compilation failed') &&
+      gunicorn ${PROJECT_NAME}.wsgi:application --workers=${GUNICORN_WORKERS} --timeout=${GUNICORN_TIMEOUT} --bind 0.0.0.0:${GUNICORN_PORT}
+      "
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+      - suji_static_volume:/app/static
+      - suji_media_volume:/app/media
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    tmpfs:
+      - /tmp
+      - /var/tmp
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command:
+      - /bin/sh
+      - -c
+      - redis-server --requirepass "$${REDIS_PASSWORD:?REDIS_PASSWORD variable is not set}" --appendonly yes
+    env_file:
+      - .env
+    volumes:
+      - suji_redis_data:/data
+    expose:
+      - "6379"
+    healthcheck:
+      test: [ "CMD", "redis-cli", "--no-auth-warning", "-a", "$REDIS_PASSWORD", "ping" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    user: redis
+
+  celery:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: celery -A ${PROJECT_NAME} worker --loglevel=info
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    tmpfs:
+      - /tmp
+      - /var/tmp
+
+  celery-beat:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: celery -A ${PROJECT_NAME} beat --loglevel=info
+    env_file:
+      - .env
+    volumes:
+      - .:/app
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+    tmpfs:
+      - /tmp
+      - /var/tmp
+
+  flower:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: celery -A ${PROJECT_NAME} flower --port=5555 --basic-auth=${FLOWER_USER}:${FLOWER_PASSWORD}
+    env_file:
+      - .env
+    expose:
+      - "5555"
+    depends_on:
+      - redis
+      - celery
+      - celery-beat
+    restart: unless-stopped
+    tmpfs:
+      - /tmp
+      - /var/tmp
+
+  nginx:
+    image: nginx:alpine
+    depends_on:
+      - web
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro  # Read-only
+      - suji_static_volume:/app/static:ro    # Read-only static files
+      - suji_media_volume:/app/media:ro      # Read-only media files
+      - ./ssl:/etc/nginx/ssl:ro              # SSL certificates (create this directory)
+    restart: unless-stopped
+
+networks:
+  default:
+    driver: bridge
+    internal: false
+
+volumes:
+  suji_postgres_data:
+  suji_mongo_data:
+  suji_redis_data:
+  suji_media_volume:
+  suji_static_volume:
