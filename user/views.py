@@ -14,7 +14,7 @@ from user.permissions import IsGuestPlayer
 from user.serializers import NormalPlayerSignUpSerializer, NormalPlayerVerifySerializer, NormalPlayerSignInSerializer, \
     GuestPlayerSignUpSerializer, GuestPlayerSignInSerializer, GuestPlayerRecoverySerializer, \
     NormalPlayerForgetPasswordRequestSerializer, NormalPlayerResetPasswordSerializer, PlayerProfileSerializer, \
-    PlayerProfileSelfRetrieveSerializer, GuestConvertSerializer
+    PlayerProfileSelfRetrieveSerializer, GuestConvertSerializer, NormalPlayerAuthSerializer, GuestPlayerAuthSerializer
 from utils.random_functions import generate_random_string
 
 
@@ -45,8 +45,9 @@ class NormalPlayerAuthView(viewsets.GenericViewSet):
             return Response({'error': _("Invalid email.")}, status=status.HTTP_400_BAD_REQUEST)
         user: NormalPlayer = user.first()
         verified = user.verify_email(otp=data["otp"])
+        credentials = user.get_token()
         if verified:
-            return Response(data={'user': self.serializer_class(user).data, "message": _("Verified successfully")},
+            return Response(data={'user': NormalPlayerAuthSerializer(user).data, 'credentials': credentials, "message": _("Verified successfully")},
                             status=status.HTTP_200_OK)
         return Response(data={'error': _('Invalid OTP.')}, status=status.HTTP_406_NOT_ACCEPTABLE)
 
@@ -104,9 +105,10 @@ class GuestPlayerAuthView(viewsets.GenericViewSet):
         password = generate_random_string(length=10)
         try:
             user = serializer.save(password=password)
+            credentials = user.get_token()
         except IntegrityError as e:
-            return Response({'error': _("User already exists.")}, status=status.HTTP_400_BAD_REQUEST)
-        data = {**self.serializer_class(user).data, "password": password}
+            return Response({'error': _("User already exists.")}, status=status.HTTP_403_FORBIDDEN)
+        data = {'user': GuestPlayerAuthSerializer(user).data, 'credentials': credentials, "password": password}
         return Response(data=data, status=status.HTTP_201_CREATED)
 
     @action(methods=['POST'], detail=False, url_path="login", url_name="login",

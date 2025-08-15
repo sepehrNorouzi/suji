@@ -3,8 +3,20 @@ from rest_framework import serializers
 from user.models import NormalPlayer, GuestPlayer, Player
 
 
+class NormalPlayerAuthSerializer(serializers.ModelSerializer):
+    
+    class Meta:
+        model = NormalPlayer
+        fields = ['id', 'email', 'password', 'profile_name', 'gender', 'birth_date', 'first_name', 'last_name', ]
+
+class GuestPlayerAuthSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = GuestPlayer
+        fields = ['id', 'device_id', 'recovery_string', 'profile_name', 'gender', 'birth_date', 'first_name', 'last_name']
+
+
 class NormalPlayerSignUpSerializer(serializers.ModelSerializer):
-    email = serializers.EmailField(required=True)
+    email = serializers.EmailField(required=True, write_only=True)
     password = serializers.CharField(write_only=True)
 
     class Meta:
@@ -60,12 +72,10 @@ class NormalPlayerResetPasswordSerializer(serializers.Serializer):
 
 class GuestPlayerSignUpSerializer(serializers.ModelSerializer):
     device_id = serializers.CharField(required=True)
-    credentials = serializers.SerializerMethodField()
 
     class Meta:
         model = GuestPlayer
-        fields = ['device_id', 'recovery_string', 'profile_name', 'gender', 'birth_date', 'first_name', 'last_name',
-                  'credentials']
+        fields = ['device_id', 'recovery_string', 'profile_name', 'gender', 'birth_date', 'first_name', 'last_name']
 
     def create(self, validated_data):
         data = validated_data
@@ -74,9 +84,6 @@ class GuestPlayerSignUpSerializer(serializers.ModelSerializer):
         del data['password']
         del data['device_id']
         return GuestPlayer.create(device_id=device_id, password=password, **data)
-
-    def get_credentials(self, obj: GuestPlayer):
-        return obj.get_token()
 
 
 class GuestPlayerSignInSerializer(serializers.ModelSerializer):
