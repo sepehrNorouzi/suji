@@ -1,6 +1,7 @@
 django==5.2.4
 djangorestframework==3.16.0
 djangorestframework-simplejwt==5.5.0
+django-cors-headers==4.7.0
 python-dotenv==1.1.1
 psycopg2-binary==2.9.10
 markdown==3.8.2
@@ -24,3 +25,7 @@ mongoengine==0.29.1
 coverage==7.9.2
 
 drf-yasg==1.21.10
+
+grpcio
+grpcio-tools
+protobuf

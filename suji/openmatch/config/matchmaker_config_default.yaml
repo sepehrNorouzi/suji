@@ -1,0 +1,36 @@
+# OpenMatch Default Configuration
+logging:
+  level: debug
+  format: text
+  
+telemetry:
+  zpages:
+    enabled: true
+  prometheus:
+    enabled: true
+    endpoint: "/metrics"
+    
+redis:
+  hostname: om-redis
+  port: 6379
+  pool:
+    maxIdle: 50
+    maxActive: 100
+    idleTimeout: 300s
+    healthCheckInterval: 30s
+    
+api:
+  grpc:
+    port: 50504
+  http:
+    port: 51504
+    
+evaluator:
+  enabled: false
+  
+synchronizer:
+  enabled: true
+  proposalCollectionInterval: 5s
+  
+backfill:
+  enabled: false

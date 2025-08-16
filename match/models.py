@@ -18,7 +18,6 @@ class MatchConfiguration(SingletonCachableModel):
         verbose_name = _("Match Configuration")
         verbose_name_plural = _("Match Configuration")
 
-
 class MatchType(BaseModel):
     class MatchTypeModes(models.TextChoices):
         ONLINE = 'online', _('Online')
@@ -50,6 +49,8 @@ class MatchType(BaseModel):
     loser_score = models.PositiveSmallIntegerField(verbose_name=_("Loser Score"), default=0)
 
     mode = models.CharField(max_length=15, choices=MatchTypeModes.choices, default=MatchTypeModes.ONLINE)
+
+    banner = models.ImageField(upload_to='match/type/banner', null=True, blank=True, verbose_name=_("Banner"))
 
     class Meta:
         verbose_name = _("Match Type")
