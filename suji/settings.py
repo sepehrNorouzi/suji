@@ -168,6 +168,53 @@ USE_I18N = True
 USE_TZ = True
 USE_L10N = True
 
+
+LOGS_DIR = os.path.join(BASE_DIR, 'logs')
+if not os.path.exists(LOGS_DIR):
+    os.makedirs(LOGS_DIR)
+
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'file': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(BASE_DIR, 'logs', 'matchmaking.log'),
+            'formatter': 'verbose',
+        },
+        'console': {
+            'level': 'DEBUG',
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple',
+        },
+    },
+    'loggers': {
+        'match.services': {
+            'handlers': ['file', 'console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'match.views': {
+            'handlers': ['file', 'console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    },
+}
+
+
 LANGUAGES = [
     ('en', 'English'),
     ('fa', 'Farsi'),
@@ -222,3 +269,12 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL")
 CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULTS_BACKEND")
+
+# MatchMaking
+OPENMATCH_FRONTEND_URL = os.environ.get('OPENMATCH_FRONTEND_URL', 'http://localhost:51504')
+OPENMATCH_BACKEND_URL = os.environ.get('OPENMATCH_BACKEND_URL', 'http://localhost:51505')
+OPENMATCH_QUERY_URL = os.environ.get('OPENMATCH_QUERY_URL', 'http://localhost:51503')
+OPENMATCH_TIMEOUT = int(os.environ.get('OPENMATCH_TIMEOUT', '30'))
+
+MATCHMAKING_DEFAULT_TIMEOUT = int(os.environ.get('MATCHMAKING_DEFAULT_TIMEOUT', '300')) 
+MATCHMAKING_MAX_CONCURRENT_TICKETS = int(os.environ.get('MATCHMAKING_MAX_CONCURRENT_TICKETS', '1'))

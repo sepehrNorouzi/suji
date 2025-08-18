@@ -158,7 +158,7 @@ networks:
     internal: false
 
   suji-net:
-    driver: bridge
+    external: true
 
 volumes:
   suji_postgres_data:

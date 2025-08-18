@@ -7,9 +7,10 @@ from rest_framework.viewsets import GenericViewSet
 from django.utils.translation import gettext_lazy as _
 
 from match.exceptions import MatchJoinError
-from match.models import MatchType, Match
+from match.models import MatchType, Match, MatchmakingTicket
 from match.permissions import IsGameServer
-from match.serializers import MatchTypeSerializer, MatchSerializer, MatchCreateSerializer, MatchFinishSerializer
+from match.serializers import MatchTypeSerializer, MatchSerializer, MatchCreateSerializer, MatchFinishSerializer, MatchmakingJoinSerializer, MatchmakingLeaveSerializer, MatchmakingStatusSerializer, MatchmakingTicketSerializer
+from match.services.matchmaking import MatchmakingManager
 
 
 class MatchTypeViewSet(GenericViewSet, mixins.ListModelMixin, mixins.RetrieveModelMixin):
@@ -89,3 +90,221 @@ class MatchViewSet(GenericViewSet, mixins.ListModelMixin, mixins.RetrieveModelMi
             return Response(data={"detail": _("User has no active match"), "code": "no_active_match"},
                             status=status.HTTP_404_NOT_FOUND)
         return Response(self.serializer_class(match).data)
+
+class MatchmakingViewSet(GenericViewSet):
+    """
+    ViewSet for matchmaking operations
+    """
+    permission_classes = [IsAuthenticated]
+    
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.matchmaking_manager = MatchmakingManager()
+    
+    @action(
+        methods=['POST'], 
+        detail=False, 
+        url_path='join', 
+        url_name='join',
+        serializer_class=MatchmakingJoinSerializer
+    )
+    def join_matchmaking(self, request, *args, **kwargs):
+        """
+        Join matchmaking queue for a specific match type
+        
+        POST /api/matchmaking/join/
+        {
+            "match_type_id": 1,
+            "search_fields": {
+                "region": "us-west",
+                "skill_level": "intermediate",
+                "string_args": {...},
+                "double_args": {...}
+            }
+        }
+        """
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        match_type_id = serializer.validated_data['match_type_id']
+        search_fields = serializer.validated_data.get('search_fields', {})
+        
+        success, result = self.matchmaking_manager.join_matchmaking(
+            player=request.user,
+            match_type_id=match_type_id,
+            search_fields=search_fields
+        )
+        
+        if success:
+            return Response(
+                {
+                    "success": True,
+                    "message": _("Successfully joined matchmaking queue"),
+                    "data": result
+                },
+                status=status.HTTP_201_CREATED
+            )
+        else:
+            error_status = status.HTTP_400_BAD_REQUEST
+            if "Already in matchmaking" in result.get("error", ""):
+                error_status = status.HTTP_409_CONFLICT
+            elif "Cannot join match" in result.get("error", ""):
+                error_status = status.HTTP_403_FORBIDDEN
+            
+            return Response(
+                {
+                    "success": False,
+                    "error": result.get("error", "Unknown error"),
+                    "details": result.get("details", {})
+                },
+                status=error_status
+            )
+    
+    @action(
+        methods=['POST'], 
+        detail=False, 
+        url_path='leave', 
+        url_name='leave',
+        serializer_class=MatchmakingLeaveSerializer
+    )
+    def leave_matchmaking(self, request, *args, **kwargs):
+        """
+        Leave matchmaking queue
+        
+        POST /api/matchmaking/leave/
+        {
+            "match_type_id": 1  // Optional: specific match type to leave
+        }
+        """
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        
+        match_type_id = serializer.validated_data.get('match_type_id')
+        
+        success, result = self.matchmaking_manager.leave_matchmaking(
+            player=request.user,
+            match_type_id=match_type_id
+        )
+        
+        if success:
+            return Response(
+                {
+                    "success": True,
+                    "message": _("Successfully left matchmaking queue"),
+                    "data": result
+                },
+                status=status.HTTP_200_OK
+            )
+        else:
+            return Response(
+                {
+                    "success": False,
+                    "error": result.get("error", "Unknown error"),
+                    "details": result.get("details", {})
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )
+    
+    @action(
+        methods=['GET'], 
+        detail=False, 
+        url_path='status', 
+        url_name='status',
+        serializer_class=MatchmakingStatusSerializer
+    )
+    def get_status(self, request, *args, **kwargs):
+        """
+        Get current matchmaking status for the authenticated user
+        
+        GET /api/matchmaking/status/
+        """
+        result = self.matchmaking_manager.get_matchmaking_status(request.user)
+        
+        return Response(
+            {
+                "success": True,
+                "data": result
+            },
+            status=status.HTTP_200_OK
+        )
+    
+    @action(
+        methods=['GET'], 
+        detail=False, 
+        url_path='tickets', 
+        url_name='tickets',
+        serializer_class=MatchmakingTicketSerializer
+    )
+    def list_tickets(self, request, *args, **kwargs):
+        """
+        List all matchmaking tickets for the authenticated user
+        
+        GET /api/matchmaking/tickets/
+        """
+        tickets = MatchmakingTicket.objects.filter(
+            player=request.user,
+            is_active=True
+        ).order_by('-created_time')
+        
+        serializer = self.get_serializer(tickets, many=True)
+        
+        return Response(
+            {
+                "success": True,
+                "data": serializer.data
+            },
+            status=status.HTTP_200_OK
+        )
+    
+    @action(
+        methods=['POST'], 
+        detail=False, 
+        url_path='cancel/(?P<ticket_id>[^/.]+)', 
+        url_name='cancel-ticket'
+    )
+    def cancel_ticket(self, request, ticket_id=None, *args, **kwargs):
+        """
+        Cancel a specific matchmaking ticket
+        
+        POST /api/matchmaking/cancel/{ticket_id}/
+        """
+        try:
+            ticket = MatchmakingTicket.objects.get(
+                ticket_id=ticket_id,
+                player=request.user,
+                status=MatchmakingTicket.TicketStatus.PENDING,
+                is_active=True
+            )
+        except MatchmakingTicket.DoesNotExist:
+            return Response(
+                {
+                    "success": False,
+                    "error": _("Ticket not found or already processed")
+                },
+                status=status.HTTP_404_NOT_FOUND
+            )
+        
+        # Use the matchmaking manager to properly cancel
+        success, result = self.matchmaking_manager.leave_matchmaking(
+            player=request.user,
+            match_type_id=ticket.match_type.id
+        )
+        
+        if success:
+            return Response(
+                {
+                    "success": True,
+                    "message": _("Ticket cancelled successfully"),
+                    "data": result
+                },
+                status=status.HTTP_200_OK
+            )
+        else:
+            return Response(
+                {
+                    "success": False,
+                    "error": result.get("error", "Failed to cancel ticket"),
+                    "details": result.get("details", {})
+                },
+                status=status.HTTP_400_BAD_REQUEST
+            )

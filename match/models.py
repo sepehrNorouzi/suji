@@ -52,6 +52,39 @@ class MatchType(BaseModel):
 
     banner = models.ImageField(upload_to='match/type/banner', null=True, blank=True, verbose_name=_("Banner"))
 
+    pool_name = models.CharField(
+        max_length=100,
+        verbose_name=_("Pool Name"),
+        help_text=_("OpenMatch pool name for this match type"),
+        default="default_pool"
+    )
+    
+    # Search fields configuration
+    search_fields_config = models.JSONField(
+        default=dict,
+        verbose_name=_("Search Fields Config"),
+        help_text=_("Configuration for OpenMatch search fields")
+    )
+    
+    # Matchmaking settings
+    max_players = models.PositiveSmallIntegerField(
+        default=2,
+        verbose_name=_("Max Players"),
+        help_text=_("Maximum number of players for this match type")
+    )
+    
+    min_players = models.PositiveSmallIntegerField(
+        default=2,
+        verbose_name=_("Min Players"),
+        help_text=_("Minimum number of players for this match type")
+    )
+    
+    matchmaking_timeout = models.PositiveIntegerField(
+        default=300,  # 5 minutes
+        verbose_name=_("Matchmaking Timeout (seconds)"),
+        help_text=_("How long to wait for matchmaking before timeout")
+    )
+
     class Meta:
         verbose_name = _("Match Type")
         verbose_name_plural = _("Match Types")
@@ -161,3 +194,86 @@ class MatchResult(BaseModel):
         obj = cls.objects.create(match_uuid=match_uuid, match_type=match_type, history=history)
         obj.players.add(*players)
         return obj
+
+
+class MatchmakingTicket(BaseModel):
+    """
+    Represents a matchmaking ticket in OpenMatch
+    """
+    class TicketStatus(models.TextChoices):
+        PENDING = 'pending', _('Pending')
+        MATCHED = 'matched', _('Matched')
+        CANCELLED = 'cancelled', _('Cancelled')
+        ERROR = 'error', _('Error')
+
+    ticket_id = models.CharField(max_length=255, unique=True, verbose_name=_("Ticket ID"))
+    player = models.ForeignKey(
+        to='user.User', 
+        on_delete=models.CASCADE, 
+        verbose_name=_("Player"),
+        related_name='matchmaking_tickets'
+    )
+    match_type = models.ForeignKey(
+        to='match.MatchType',
+        on_delete=models.CASCADE,
+        verbose_name=_("Match Type"),
+        related_name='matchmaking_tickets'
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=TicketStatus.choices,
+        default=TicketStatus.PENDING,
+        verbose_name=_("Status")
+    )
+    search_fields = models.JSONField(
+        default=dict,
+        verbose_name=_("Search Fields"),
+        help_text=_("OpenMatch search fields for this ticket")
+    )
+    assignment = models.JSONField(
+        default=dict,
+        blank=True,
+        verbose_name=_("Assignment"),
+        help_text=_("Match assignment data from OpenMatch")
+    )
+    error_message = models.TextField(
+        blank=True,
+        null=True,
+        verbose_name=_("Error Message")
+    )
+
+    class Meta:
+        verbose_name = _("Matchmaking Ticket")
+        verbose_name_plural = _("Matchmaking Tickets")
+
+    def __str__(self):
+        return f"{self.player.username} - {self.match_type.name} ({self.status})"
+
+    @classmethod
+    def get_active_ticket(cls, player, match_type=None):
+        """Get active matchmaking ticket for a player"""
+        queryset = cls.objects.filter(
+            player=player,
+            status=cls.TicketStatus.PENDING,
+            is_active=True
+        )
+        if match_type:
+            queryset = queryset.filter(match_type=match_type)
+        return queryset.first()
+
+    def cancel(self):
+        """Mark ticket as cancelled"""
+        self.status = self.TicketStatus.CANCELLED
+        self.save()
+
+    def mark_matched(self, assignment_data):
+        """Mark ticket as matched with assignment data"""
+        self.status = self.TicketStatus.MATCHED
+        self.assignment = assignment_data
+        self.save()
+
+    def mark_error(self, error_message):
+        """Mark ticket as error with error message"""
+        self.status = self.TicketStatus.ERROR
+        self.error_message = error_message
+        self.save()

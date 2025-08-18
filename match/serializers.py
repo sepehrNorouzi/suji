@@ -4,7 +4,7 @@ from uuid import uuid4
 
 from rest_framework.exceptions import ValidationError
 
-from match.models import MatchType, Match, MatchResult
+from match.models import MatchType, Match, MatchResult, MatchmakingTicket
 from shop.serializers import CostSerializer, RewardPackageSerializer
 from user.models import User
 from user.serializers import PlayerProfileSerializer
@@ -77,3 +77,58 @@ class MatchFinishSerializer(serializers.Serializer):
     end_time = serializers.IntegerField(write_only=True)
     winner = serializers.IntegerField(write_only=True)
     result = MatchResultSerializer(read_only=True)
+
+class MatchmakingTicketSerializer(serializers.ModelSerializer):
+    player_name = serializers.CharField(source='player.username', read_only=True)
+    match_type_name = serializers.CharField(source='match_type.name', read_only=True)
+    
+    class Meta:
+        model = MatchmakingTicket
+        fields = [
+            'id', 'ticket_id', 'player', 'player_name', 
+            'match_type', 'match_type_name', 'status', 
+            'search_fields', 'assignment', 'error_message',
+            'created_time', 'updated_time'
+        ]
+        read_only_fields = [
+            'id', 'ticket_id', 'player_name', 'match_type_name',
+            'assignment', 'error_message', 'created_time', 'updated_time'
+        ]
+
+
+class MatchmakingJoinSerializer(serializers.Serializer):
+    match_type_id = serializers.IntegerField()
+    search_fields = serializers.JSONField(default=dict, required=False)
+    
+    def validate_match_type_id(self, value):
+        from .models import MatchType
+        try:
+            match_type = MatchType.objects.get(id=value, is_active=True)
+            return value
+        except MatchType.DoesNotExist:
+            raise serializers.ValidationError("Invalid match type")
+
+
+class MatchmakingStatusSerializer(serializers.Serializer):
+    status = serializers.CharField(read_only=True)
+    ticket_id = serializers.CharField(read_only=True)
+    match_type = serializers.CharField(read_only=True)
+    search_fields = serializers.JSONField(read_only=True)
+    assignment = serializers.JSONField(read_only=True)
+    created_time = serializers.DateTimeField(read_only=True)
+    updated_time = serializers.DateTimeField(read_only=True)
+    error_message = serializers.CharField(read_only=True, allow_null=True)
+
+
+class MatchmakingLeaveSerializer(serializers.Serializer):
+    match_type_id = serializers.IntegerField(required=False)
+    
+    def validate_match_type_id(self, value):
+        if value is not None:
+            from .models import MatchType
+            try:
+                MatchType.objects.get(id=value, is_active=True)
+                return value
+            except MatchType.DoesNotExist:
+                raise serializers.ValidationError("Invalid match type")
+        return value
