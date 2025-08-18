@@ -1,0 +1,7 @@
+logging:
+  level: info
+
+redis:
+  hostname: om-redis
+  port: 6379
+  

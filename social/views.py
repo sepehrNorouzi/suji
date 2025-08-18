@@ -8,7 +8,7 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.viewsets import GenericViewSet
 
-from exceptions.social import AlreadyFriendError
+from exceptions.social import AlreadyFriendError, SelfFriendshipError, ReceiverInvalidError
 from social.models import FriendshipRequest, Friendship
 from social.serializers import FriendshipRequestSerializer, RequestedFriendshipSerializer, FriendshipSerializer
 
@@ -20,15 +20,23 @@ class FriendshipRequestViewSet(GenericViewSet, mixins.ListModelMixin, mixins.Des
     permission_classes = [IsAuthenticated]
     pagination_class = PageNumberPagination
 
-    def get_queryset(self):
-        return self.queryset.filter(receiver=self.request.user)
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.queryset.filter(receiver=self.request.user))
+
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
 
     def get_requested_friendships(self):
         return self.queryset.filter(sender=self.request.user)
 
     def get_object(self):
         obj: FriendshipRequest = super(FriendshipRequestViewSet, self).get_object()
-        if obj.receiver == self.request.user or obj.sender == self.request.user:
+        if obj.receiver.id == self.request.user.id or obj.sender.id == self.request.user.id:
             return obj
         raise Http404
 
@@ -48,13 +56,22 @@ class FriendshipRequestViewSet(GenericViewSet, mixins.ListModelMixin, mixins.Des
 
         return obj
 
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context["sender_id"] = self.request.user.id
+        return context
+
     def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data={**request.data, 'sender_id': self.request.user.id})
+        serializer = self.serializer_class(data=request.data, context=self.get_serializer_context())
         serializer.is_valid(raise_exception=True)
         try:
             self.perform_create(serializer)
         except AlreadyFriendError as e:
             return Response(data={"error": _(str(e))}, status=status.HTTP_409_CONFLICT)
+        except SelfFriendshipError as e:
+            return Response(data={"error": _(str(e))}, status=status.HTTP_406_NOT_ACCEPTABLE)
+        except ReceiverInvalidError as e:
+            return Response(data={"error": _(str(e))}, status=status.HTTP_404_NOT_FOUND)
         headers = self.get_success_headers(serializer.data)
         return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
@@ -93,7 +110,6 @@ class FriendshipRequestViewSet(GenericViewSet, mixins.ListModelMixin, mixins.Des
 
 
 class FriendshipViewSet(GenericViewSet, mixins.ListModelMixin, mixins.DestroyModelMixin):
-
     queryset = Friendship.objects.all()
     serializer_class = FriendshipSerializer
     permission_classes = [IsAuthenticated, ]

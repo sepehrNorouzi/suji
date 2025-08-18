@@ -98,15 +98,6 @@ class PlayerWallet(BaseModel):
                                                              asset=item))
         self.asset_ownerships.bulk_create(assets)
         PlayerWalletLog.objects.bulk_create(player_wallet_log_objects)
-        if package.has_supported:
-            self.player.supports.create(reason=package.support_type)
-        if package.vip:
-            player_vip, c = self.player.vip.get_or_create()
-            if c or player_vip.is_expired():
-                player_vip.expiration_date = timezone.now() + package.vip_duration
-            else:
-                player_vip.expiration_date = player_vip.expiration_date + package.vip_duration
-            player_vip.save()
 
     @atomic()
     def add_shop_package(self, package: ShopPackage, description=None):
@@ -129,11 +120,11 @@ class PlayerWallet(BaseModel):
         player: Player = self.player.player
         if not player.is_eligible_for_daily_reward():
             raise DailyRewardEligibilityError(_("Player is not eligible to claim daily reward."))
-        reward_packages = DailyRewardPackage.load()
-        player = player.claim_daily_reward(max_streak=reward_packages.last().day_number)
-        reward_package = reward_packages.filter(day_number=player.daily_reward_streak)
-        if reward_package.exists():
-            self.add_reward_package(reward_package.first())
+        daily_reward_packages = DailyRewardPackage.load()
+        player = player.claim_daily_reward(max_streak=daily_reward_packages.last().day_number)
+        daily_reward_package = daily_reward_packages.filter(day_number=player.daily_reward_streak)
+        if daily_reward_package.exists():
+            self.add_reward_package(daily_reward_package.first().reward)
 
     def spin_lucky_wheel(self, lucky_wheel: LuckyWheel):
         player: Player = self.player.player
@@ -151,7 +142,8 @@ class PlayerWallet(BaseModel):
         if not c:
             return
         init_package: RewardPackage = ShopConfiguration.load().player_initial_package
-        wallet.add_reward_package(init_package, "Initiation.")
+        if init_package:
+            wallet.add_reward_package(init_package, "Initiation.")
 
     def current_asset(self, asset_type: AssetType) -> 'AssetOwnership':
         return self.asset_ownerships.filter(asset__type=asset_type, is_current=True).first()

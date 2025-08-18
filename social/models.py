@@ -4,7 +4,7 @@ from django.db import models
 from django.utils.translation import gettext_lazy as _
 
 from common.models import BaseModel
-from exceptions.social import AlreadyFriendError
+from exceptions.social import AlreadyFriendError, SelfFriendshipError, ReceiverInvalidError
 from user.models import User
 
 
@@ -28,8 +28,13 @@ class FriendshipRequest(BaseModel):
 
     @classmethod
     def create(cls, sender_id: int, receiver_id: int):
+        if not User.objects.filter(id=receiver_id).exists():
+            raise ReceiverInvalidError(_("User does not exist."))
         if Friendship.check_friendship(sender_id, receiver_id):
             raise AlreadyFriendError(_(f"{receiver_id} already friends with {sender_id}."))
+        if sender_id == receiver_id:
+            raise SelfFriendshipError(_("User can not send request to him/her self"))
+
         return cls.objects.create(sender_id=sender_id, receiver_id=receiver_id)
 
     def __str__(self):
@@ -49,19 +54,20 @@ class Friendship(BaseModel):
         verbose_name = _('Friendship')
         verbose_name_plural = _('Friendships')
         unique_together = (('user_1', 'user_2'),)
+        ordering = ("-created_time", )
 
     def __str__(self):
         return f'{self.user_1} - {self.user_2}'
 
     @classmethod
     def _check_friendship_with_id(cls, user_1_id: int, user_2_id: int) -> bool:
-        if user_1_id < user_2_id:
+        if user_1_id > user_2_id:
             return cls.objects.filter(user_1_id=user_1_id, user_2_id=user_2_id).exists()
         return cls.objects.filter(user_2_id=user_1_id, user_1_id=user_2_id).exists()
 
     @classmethod
     def _check_friendship_with_user_instance(cls, user_1: User, user_2: User) -> bool:
-        if user_1.id < user_2.id:
+        if user_1.id > user_2.id:
             return cls.objects.filter(user_1=user_1, user_2=user_2).exists()
         return cls.objects.filter(user_2=user_1, user_1=user_2).exists()
 

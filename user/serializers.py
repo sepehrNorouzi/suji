@@ -1,10 +1,22 @@
 from rest_framework import serializers
 
-from user.models import NormalPlayer, GuestPlayer, VipPlayer, SupporterPlayerInfo, Player
+from user.models import NormalPlayer, GuestPlayer, Player
+
+
+class NormalPlayerAuthSerializer(serializers.ModelSerializer):
+    
+    class Meta:
+        model = NormalPlayer
+        fields = ['id', 'email', 'password', 'profile_name', 'gender', 'birth_date', 'first_name', 'last_name', ]
+
+class GuestPlayerAuthSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = GuestPlayer
+        fields = ['id', 'device_id', 'recovery_string', 'profile_name', 'gender', 'birth_date', 'first_name', 'last_name']
 
 
 class NormalPlayerSignUpSerializer(serializers.ModelSerializer):
-    email = serializers.EmailField(required=True)
+    email = serializers.EmailField(required=True, write_only=True)
     password = serializers.CharField(write_only=True)
 
     class Meta:
@@ -38,27 +50,13 @@ class NormalPlayerVerifySerializer(serializers.ModelSerializer):
         return obj.get_token()
 
 
-class VipSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = VipPlayer
-        fields = ['expiration_date', 'id']
-
-
 class NormalPlayerSignInSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True)
     email = serializers.EmailField(required=True)
-    vip = serializers.SerializerMethodField()
 
     class Meta:
         model = NormalPlayer
-        fields = ['email', 'profile_name', 'gender', 'birth_date', 'first_name', 'last_name', 'password', 'vip', ]
-
-    @staticmethod
-    def get_vip(obj: NormalPlayer):
-        vip = obj.vip.first()
-        if vip and not vip.is_expired():
-            return VipSerializer(vip).data
-        return None
+        fields = ['email', 'profile_name', 'gender', 'birth_date', 'first_name', 'last_name', 'password', ]
 
 
 class NormalPlayerForgetPasswordRequestSerializer(serializers.Serializer):
@@ -74,12 +72,10 @@ class NormalPlayerResetPasswordSerializer(serializers.Serializer):
 
 class GuestPlayerSignUpSerializer(serializers.ModelSerializer):
     device_id = serializers.CharField(required=True)
-    credentials = serializers.SerializerMethodField()
 
     class Meta:
         model = GuestPlayer
-        fields = ['device_id', 'recovery_string', 'profile_name', 'gender', 'birth_date', 'first_name', 'last_name',
-                  'credentials']
+        fields = ['device_id', 'recovery_string', 'profile_name', 'gender', 'birth_date', 'first_name', 'last_name']
 
     def create(self, validated_data):
         data = validated_data
@@ -88,9 +84,6 @@ class GuestPlayerSignUpSerializer(serializers.ModelSerializer):
         del data['password']
         del data['device_id']
         return GuestPlayer.create(device_id=device_id, password=password, **data)
-
-    def get_credentials(self, obj: GuestPlayer):
-        return obj.get_token()
 
 
 class GuestPlayerSignInSerializer(serializers.ModelSerializer):
@@ -113,6 +106,11 @@ class GuestPlayerRecoverySerializer(serializers.ModelSerializer):
         fields = ['device_id', 'profile_name', 'gender', 'birth_date', 'first_name', 'last_name',
                   'recovery_string', 'password', ]
 
+class GuestConvertSerializer(serializers.Serializer):
+    email = serializers.EmailField(required=True)
+    password = serializers.CharField(write_only=True)
+    profile_name = serializers.CharField(required=False)
+
 
 class PlayerAvatarSerializer(serializers.Serializer):
     id = serializers.IntegerField(read_only=True)
@@ -124,20 +122,12 @@ class PlayerProfileSerializer(serializers.Serializer):
     profile_name = serializers.CharField(read_only=True)
     gender = serializers.CharField(read_only=True)
     birth_date = serializers.DateField(read_only=True)
-    vip = serializers.SerializerMethodField()
     current_avatar = serializers.SerializerMethodField(read_only=True)
 
     @staticmethod
     def get_current_avatar(obj):
         current = obj.current_avatar
         return PlayerAvatarSerializer(obj.current_avatar).data if current else None
-
-    @staticmethod
-    def get_vip(obj):
-        vip = obj.vip.first()
-        if vip:
-            return not vip.is_expired()
-        return False
 
 
 class PlayerProfileSelfRetrieveSerializer(PlayerProfileSerializer):
@@ -150,28 +140,6 @@ class PlayerProfileSelfRetrieveSerializer(PlayerProfileSerializer):
     @staticmethod
     def get_invites_count(obj: Player):
         return obj.invite_count()
-
-
-class SupporterPlayerSerializer(serializers.ModelSerializer):
-    player = PlayerProfileSerializer()
-
-    class Meta:
-        model = SupporterPlayerInfo
-        exclude = ['created_time', 'is_active', 'updated_time']
-
-
-class SupporterRetrieveSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = SupporterPlayerInfo
-        fields = ['reason', 'message', 'instagram_link', 'telegram_link', 'rubika_link', 'id']
-
-
-class SupporterPanelUseSerializer(serializers.Serializer):
-    message = serializers.CharField(required=False)
-    instagram_link = serializers.CharField(required=False)
-    telegram_link = serializers.CharField(required=False)
-    website_link = serializers.CharField(required=False)
-    visible = serializers.BooleanField(default=False)
 
 
 class PlayerCacheSerializer(PlayerProfileSerializer):

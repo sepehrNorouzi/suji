@@ -1,0 +1,59 @@
+logging:
+  level: debug
+  format: text
+  rpc: false
+
+telemetry:
+  zpages:
+    enable: false
+  jaeger:
+    enable: false
+  prometheus:
+    enable: false
+    endpoint: "/metrics"
+    namespace: "open_match"
+  reportingPeriod: 10h
+    
+
+redis:
+  hostname: om-redis
+  port: 6379
+  passwordPath: ""
+  pool:
+    maxIdle: 50
+    maxActive: 100
+    idleTimeout: 300s
+    healthCheckTimeout: 10s
+
+api:
+  frontend:
+    hostname: "0.0.0.0"
+    grpcport: 50504
+    httpport: 51504
+  backend:
+    hostname: "0.0.0.0"
+    grpcport: 50505
+    httpport: 51505
+  query:
+    hostname: "0.0.0.0"
+    grpcport: 50503
+    httpport: 51503
+  synchronizer:
+    hostname: "0.0.0.0"
+    grpcport: 50506
+    httpport: 51506
+  swaggerui:
+    hostname: "0.0.0.0"
+    httpport: 51507
+
+synchronizer:
+  enabled: true
+  registrationIntervalMs: 3000
+  proposalCollectionIntervalMs: 2000
+
+evaluator:
+  enabled: false
+
+backfill:
+  enabled: false
+  
