@@ -1,3 +1,5 @@
+from django.conf import settings
+from django.conf.urls.static import static
 from django.contrib import admin
 from django.shortcuts import redirect
 from django.urls import path, include
@@ -10,6 +12,8 @@ from social.urls import router as social_router
 from player_statistic.urls import router as player_stats_router
 from leaderboard.urls import router as leaderboard_router
 from match.urls import router as match_router
+from suji.swagger import swagger_urlpatterns
+
 
 router = DefaultRouter()
 
@@ -22,9 +26,10 @@ router.registry.extend(player_stats_router.registry)
 router.registry.extend(leaderboard_router.registry)
 router.registry.extend(match_router.registry)
 
+
 urlpatterns = [
     path('', lambda request: redirect(to='admin/', permenant=True)),
     path('admin/', admin.site.urls),
     path('api/', include(router.urls)),
-]
+] + swagger_urlpatterns + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
 

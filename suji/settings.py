@@ -64,18 +64,19 @@ ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '').split(',')
 PROJECT_NAME = os.environ.get('PROJECT_NAME', "suji")
 
 INSTALLED_APPS = [
+    'user.apps.UserConfig',
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.messages',
+    'corsheaders',
     'storages',
     'django.contrib.staticfiles',
     'rest_framework',
     'rest_framework_simplejwt',
     "django_celery_results",
     "django_celery_beat",
-    'user.apps.UserConfig',
     'common.apps.CommonConfig',
     'shop.apps.ShopConfig',
     'player_shop.apps.PlayerShopConfig',
@@ -90,12 +91,14 @@ AUTH_USER_MODEL = 'user.User'
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    "corsheaders.middleware.CorsMiddleware",
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
+CORS_ALLOW_ALL_ORIGINS = True
 
 ROOT_URLCONF = 'suji.urls'
 
@@ -165,6 +168,53 @@ USE_I18N = True
 USE_TZ = True
 USE_L10N = True
 
+
+LOGS_DIR = os.path.join(BASE_DIR, 'logs')
+if not os.path.exists(LOGS_DIR):
+    os.makedirs(LOGS_DIR)
+
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {process:d} {thread:d} {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'file': {
+            'level': 'INFO',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(BASE_DIR, 'logs', 'matchmaking.log'),
+            'formatter': 'verbose',
+        },
+        'console': {
+            'level': 'DEBUG',
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple',
+        },
+    },
+    'loggers': {
+        'match.services': {
+            'handlers': ['file', 'console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        'match.views': {
+            'handlers': ['file', 'console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+    },
+}
+
+
 LANGUAGES = [
     ('en', 'English'),
     ('fa', 'Farsi'),
@@ -219,3 +269,24 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 CELERY_BROKER_URL = os.environ.get("CELERY_BROKER_URL")
 CELERY_RESULT_BACKEND = os.environ.get("CELERY_RESULTS_BACKEND")
+
+CELERY_WORKER_CONCURRENCY = 4
+CELERYD_MAX_TASKS_PER_CHILD = 100
+CELERY_ACKS_LATE = True
+CELERY_TASK_TIME_LIMIT = 30
+
+CELERY_TASK_SERIALIZER = "json"
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_RESULT_SERIALIZER = "json"
+CELERY_TIMEZONE = TIME_ZONE
+
+IDEMPOTENCY_REDIS_URL = os.environ.get("IDEMPOTENCY_REDIS_URL", "redis://redis:6379/15")
+
+# MatchMaking
+OPENMATCH_FRONTEND_URL = os.environ.get('OPENMATCH_FRONTEND_URL', 'http://localhost:51504')
+OPENMATCH_BACKEND_URL = os.environ.get('OPENMATCH_BACKEND_URL', 'http://localhost:51505')
+OPENMATCH_QUERY_URL = os.environ.get('OPENMATCH_QUERY_URL', 'http://localhost:51503')
+OPENMATCH_TIMEOUT = int(os.environ.get('OPENMATCH_TIMEOUT', '30'))
+
+MATCHMAKING_DEFAULT_TIMEOUT = int(os.environ.get('MATCHMAKING_DEFAULT_TIMEOUT', '300')) 
+MATCHMAKING_MAX_CONCURRENT_TICKETS = int(os.environ.get('MATCHMAKING_MAX_CONCURRENT_TICKETS', '1'))

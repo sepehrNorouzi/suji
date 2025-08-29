@@ -37,7 +37,6 @@ class MatchCreateSerializer(serializers.Serializer):
     match_type = serializers.IntegerField()
     uuid = serializers.UUIDField(default=uuid4)
 
-
     def validate_players(self, data):
         players = User.objects.filter(id__in=data)
         criteria = players.count() == len(data)
@@ -52,23 +51,14 @@ class MatchCreateSerializer(serializers.Serializer):
             raise ValidationError('Match type is invalid.')
         return match_type.first()
 
-    def validate(self, attrs):
-        return super().validate(attrs)
-
     def create(self, validated_data):
-        match_uuid: str = validated_data['uuid']
+        match_uuid: str = validated_data['uuid'].__str__()
         match_type: MatchType = validated_data['match_type']
         players: QuerySet[User] = validated_data['players']
-        match: Match = Match.objects.create(uuid=match_uuid, match_type=match_type)
-
-        for player in players:
-            match_type.pay_match_entry(player)
-
-        match.players.add(*players)
+        match = Match.start(players=players, match_type=match_type, match_uuid=match_uuid)
         return match
 
 class PlayerMatchFinish(serializers.Serializer):
-    board = serializers.ListField(child=serializers.IntegerField())
     id = serializers.IntegerField()
     result = serializers.CharField()
 
@@ -85,3 +75,16 @@ class MatchFinishSerializer(serializers.Serializer):
     end_time = serializers.IntegerField(write_only=True)
     winner = serializers.IntegerField(write_only=True)
     result = MatchResultSerializer(read_only=True)
+
+
+class MatchmakingJoinSerializer(serializers.Serializer):
+    match_type_id = serializers.IntegerField()
+    search_fields = serializers.JSONField(default=dict, required=False)
+    
+    def validate_match_type_id(self, value):
+        from .models import MatchType
+        try:
+            match_type = MatchType.objects.get(id=value, is_active=True)
+            return value
+        except MatchType.DoesNotExist:
+            raise serializers.ValidationError("Invalid match type")
