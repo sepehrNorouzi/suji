@@ -26,7 +26,4 @@ coverage==7.9.2
 
 drf-yasg==1.21.10
 
-grpcio==1.74.0
-grpcio-tools==1.74.0
-protobuf
-requests
+kombu==5.5.4

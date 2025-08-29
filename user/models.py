@@ -3,6 +3,7 @@ import json
 import random
 from datetime import timedelta
 from typing import Union
+from uuid import uuid4
 
 from django.conf import settings
 from django.contrib.auth.models import PermissionsMixin, AbstractUser
@@ -81,6 +82,7 @@ class PlayerLuckyWheel(models.Model):
 
 
 class User(AbstractUser, PermissionsMixin, PlayerDailyReward, PlayerLuckyWheel):
+    uuid = models.UUIDField(unique=True, blank=False, null=False, db_index=True, default=uuid4, editable=False)
     email = models.EmailField(unique=True, null=True, blank=True, verbose_name=_("Email"))
     device_id = models.CharField(max_length=255, unique=True, null=True, blank=True, verbose_name=_("Device ID"))
     is_staff = models.BooleanField(default=False, verbose_name=_("Staff status"))
@@ -192,6 +194,12 @@ class Player(User):
         if self.is_authenticated:
             refresh = RefreshToken.for_user(self)
             access_token = AccessToken.for_user(self)
+            access_token.payload = {
+                **access_token.payload,
+                'avatar': self.current_avatar_json,
+                'uuid': self.uuid.__str__(),
+                'profile_name': self.profile_name
+            }
             token = {
                 'access': str(access_token),
                 'refresh': str(refresh),

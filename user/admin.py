@@ -11,7 +11,7 @@ from user.models import User, GuestPlayer, NormalPlayer
 class UserBaseAdmin(_UserAdmin):
     list_display = ["email", "username", 'device_id', "first_name", "last_name", "is_staff", ]
     fieldsets = [
-        (None, {"fields": ("email", "device_id", "password")}),
+        (None, {"fields": ("email", "device_id", "password", 'uuid')}),
         (_("Personal info"), {"fields": ("first_name", "last_name",)}),
         (
             _("Permissions"),

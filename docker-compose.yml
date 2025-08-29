@@ -51,7 +51,7 @@ services:
       - suji_media_volume:/app/media
     networks:
       - default
-      - suji-net
+      - events-net
     ports:
       - "8000:8000"
     depends_on:
@@ -87,6 +87,9 @@ services:
       context: .
       dockerfile: Dockerfile
     command: celery -A ${PROJECT_NAME} worker --loglevel=info
+    networks:
+      - events-net
+      - default
     env_file:
       - .env
     volumes:
@@ -127,8 +130,8 @@ services:
     command: celery -A ${PROJECT_NAME} flower --port=5555 --basic-auth=${FLOWER_USER}:${FLOWER_PASSWORD}
     env_file:
       - .env
-    expose:
-      - "5555"
+    ports:
+      - "5555:5555"
     depends_on:
       - redis
       - celery
@@ -157,7 +160,7 @@ networks:
     driver: bridge
     internal: false
 
-  suji-net:
+  events-net:
     external: true
 
 volumes:

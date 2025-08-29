@@ -350,7 +350,8 @@ class GuestPlayerAuthViewTests(APITestCase):
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertIn('credentials', response.data)
         self.assertIn('password', response.data)  # Randomly generated password
-        self.assertIn('recovery_string', response.data)
+        self.assertIn('user', response.data)
+        self.assertIn('recovery_string', response.data['user'])
 
         # User should exist in database
         user = GuestPlayer.objects.get(device_id='test-device-123')
@@ -370,7 +371,7 @@ class GuestPlayerAuthViewTests(APITestCase):
 
         response = self.client.post('/api/user/auth/guest/signup/', data)
 
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
         self.assertIn('error', response.data)
 
     def test_guest_signup_without_device_id_returns_validation_error(self):
