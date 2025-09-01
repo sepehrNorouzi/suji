@@ -24,6 +24,7 @@ def handle_game_started(raw_body: dict):
     if _seen_event(event_id):
         return "duplicate"
 
+    print("[handle_game_started] RAW BODY: ", raw_body)
     # ---- Your business logic here ----
     # e.g., record match start, notify users, etc.
     # Do DB writes inside transactions as needed.

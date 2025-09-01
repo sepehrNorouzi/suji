@@ -160,10 +160,9 @@ class User(AbstractUser, PermissionsMixin, PlayerDailyReward, PlayerLuckyWheel):
         if not avatar:
             return None
         return {
-            "avatar": {
-                "id": avatar.id,
-                "config": avatar.config,
-            }
+            "id": avatar.id,
+            "config": avatar.config,
+            'image': avatar.image.url if avatar.image else None,
         }
 
     def save(self, *args, **kwargs):

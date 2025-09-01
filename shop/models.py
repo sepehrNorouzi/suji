@@ -66,6 +66,7 @@ class Asset(BaseModel):
     config = models.JSONField(null=True, blank=True, verbose_name=_("Asset Config"))
     type = models.CharField(verbose_name=_("Asset Type"), max_length=100, choices=AssetType.choices,
                             default=AssetType.AVATAR)
+    image = models.ImageField(verbose_name=_("Image"), null=True, blank=True, upload_to='assets')
 
     def __str__(self):
         return self.name
