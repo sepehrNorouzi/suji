@@ -3,6 +3,7 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.shortcuts import redirect
 from django.urls import path, include
+from django.utils.translation import gettext_lazy as _
 from rest_framework.routers import DefaultRouter
 from common.urls import router as common_router
 from user.urls import router as user_router
@@ -26,6 +27,8 @@ router.registry.extend(player_stats_router.registry)
 router.registry.extend(leaderboard_router.registry)
 router.registry.extend(match_router.registry)
 
+
+admin.site.site_header = _('{project_name} Management Panel').format(project_name=settings.PROJECT_NAME)
 
 urlpatterns = [
     path('', lambda request: redirect(to='admin/', permenant=True)),

@@ -3,6 +3,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 from datetime import timedelta
 
+from common.models import Configuration
 from shop.models import (
     Currency, Asset, Cost, CurrencyPackageItem, 
     RewardPackage, ShopPackage, ShopSection, 
@@ -30,6 +31,9 @@ class Command(BaseCommand):
 
         with transaction.atomic():
             self.stdout.write(self.style.SUCCESS('Starting data seeding...'))
+
+            # Create common config
+            config = self.create_common_config()
             
             # Create currencies
             currencies = self.create_currencies()
@@ -69,7 +73,7 @@ class Command(BaseCommand):
             LuckyWheelSection, LuckyWheel, DailyRewardPackage,
             ShopConfiguration, ShopPackage, ShopSection,
             RewardPackage, CurrencyPackageItem, Cost,
-            Asset, Currency, MatchType, MatchConfiguration
+            Asset, Currency, MatchType, MatchConfiguration, Configuration
         ]
         
         for model in models_to_flush:
@@ -607,3 +611,7 @@ class Command(BaseCommand):
         
         self.stdout.write(f'Created {len(match_types)} match types')
         self.stdout.write('Created match configuration')
+
+    def create_common_config(self):
+        self.stdout.write("Creating Common configuration ...")
+        return Configuration.objects.get_or_create()
