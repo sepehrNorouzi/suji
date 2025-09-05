@@ -161,7 +161,7 @@ networks:
     internal: false
 
   events-net:
-    external: true
+#    internal: true
 
 volumes:
   suji_postgres_data:
