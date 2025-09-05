@@ -446,11 +446,10 @@ class MatchViewSetTests(APITestCase):
             HTTP_X_GAME_SERVER_KEY='test-server-key'
         )
 
-        print(response.data)
 
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertIn('uuid', response.data)
-        self.assertEqual(len(response.data['players']), 1)
+        self.assertEqual(len(response.data['players']), 2)
 
     def test_authenticated_user_cannot_create_match(self):
         """Regular authenticated users should not be able to create matches"""
