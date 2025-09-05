@@ -319,7 +319,7 @@ jobs:
 
     - name: Check if Docker network exists
       run: |
-        NETWORK_NAME="suji-net"
+        NETWORK_NAME="events-net"
         if ! docker network inspect $NETWORK_NAME > /dev/null 2>&1; then
           echo "Network does not exist. Creating it..."
           docker network create $NETWORK_NAME
