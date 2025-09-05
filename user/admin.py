@@ -4,14 +4,14 @@ from django.contrib import messages
 from django.utils import timezone
 from django.utils.translation import gettext_lazy as _
 
-from user.models import User, GuestPlayer, NormalPlayer, SupporterPlayerInfo, VipPlayer
+from user.models import User, GuestPlayer, NormalPlayer
 
 
 # Register your models here.
 class UserBaseAdmin(_UserAdmin):
     list_display = ["email", "username", 'device_id', "first_name", "last_name", "is_staff", ]
     fieldsets = [
-        (None, {"fields": ("email", "device_id", "password")}),
+        (None, {"fields": ("email", "device_id", "password", 'uuid')}),
         (_("Personal info"), {"fields": ("first_name", "last_name",)}),
         (
             _("Permissions"),
@@ -69,42 +69,3 @@ class NormalPlayerAdmin(PlayerAdmin):
     list_display = ["email", "first_name", "last_name", "is_staff", 'is_verified']
     search_fields = PlayerAdmin.search_fields + ['email']
     list_filter = PlayerAdmin.list_filter + ['is_verified']
-
-
-@admin.register(SupporterPlayerInfo)
-class SupporterPlayerInfoAdmin(admin.ModelAdmin):
-    list_filter = ['approved', 'used', 'visible', 'reason', ]
-    list_display = ['player', 'message_trunc', 'approved', 'approval_date_delta', 'used', 'visible', 'reason', ]
-    raw_id_fields = ['player', ]
-    actions = ['approve_supports', 'disapprove_supports', ]
-
-    @admin.action(description="Approve selected supports")
-    def approve_supports(self, request, queryset):
-        for i in queryset:
-            i.approve()
-        messages.success(request, _(f"Approved {queryset.count()} message(s) successfully."))
-
-    @admin.action(description="Disapprove selected supports")
-    def disapprove_supports(self, request, queryset):
-        for i in queryset:
-            i.disapprove()
-        messages.success(request, _(f"Disapproved {queryset.count()} message(s) successfully."))
-
-    def approval_date_delta(self, obj: SupporterPlayerInfo):
-        if not obj.approval_date:
-            return None
-
-        return (timezone.now() - obj.approval_date).seconds // 360
-
-    def message_trunc(self, obj: SupporterPlayerInfo):
-        if not obj.message:
-            return None
-        return f'{obj.message[:10]}...'
-
-    message_trunc.short_description = "Message"
-    approval_date_delta.short_description = "Hours"
-
-
-@admin.register(VipPlayer)
-class VipPlayerAdmin(admin.ModelAdmin):
-    list_display = ['player', 'expiration_date']

@@ -12,6 +12,8 @@ class PlayerLevelViewSet(viewsets.GenericViewSet, mixins.ListModelMixin, mixins.
     queryset = PlayerLevel.objects.filter(is_active=True)
     serializer_class = PlayerLevelWithRewardSerializer
     pagination_class = PageNumberPagination
+    permission_classes = [IsAuthenticated, ]
+
 
 
 class PlayerStatisticViewSet(viewsets.GenericViewSet, mixins.ListModelMixin, mixins.RetrieveModelMixin, ):

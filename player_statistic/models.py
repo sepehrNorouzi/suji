@@ -16,7 +16,10 @@ class PlayerLevel(BaseModel):
 
     @classmethod
     def get_first_level(cls) -> 'PlayerLevel':
-        return cls.objects.get_or_create(start_xp=0)[0]
+        obj = cls.objects.first()
+        if not obj:
+            return cls.objects.create(start_xp=0)
+        return obj
 
     @classmethod
     def get_xp_cap(cls) -> int:
@@ -90,3 +93,11 @@ class PlayerStatistic(BaseModel):
     def add_cup(self, cup):
         self.cup += cup
         self.save()
+
+    def save(self, *args, **kwargs):
+        self.xp = self.calculate_xp()
+        if self.xp != self.prev_xp:
+            self.level = self.calculate_level()
+            self.prev_xp = self.xp
+
+        super(PlayerStatistic, self).save(*args, **kwargs)

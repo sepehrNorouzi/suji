@@ -1,4 +1,7 @@
 from django.contrib import admin
+from django.utils.translation import gettext_lazy as _
+from django.utils.html import format_html
+
 
 from match.models import Match, MatchType, MatchConfiguration, MatchResult
 
@@ -12,8 +15,27 @@ class MatchAdmin(admin.ModelAdmin):
 
 @admin.register(MatchType)
 class MatchTypeAdmin(admin.ModelAdmin):
-    list_display = ['name', 'id', 'entry_cost']
     search_fields = ['name']
+    list_display = ['name', 'id', 'entry_cost']
+    
+    fieldsets = [
+        (None, {
+            'fields': ('name', 'priority', 'is_active')
+        }),
+        (_('Entry Requirements'), {
+            'fields': ('entry_cost', 'min_xp', 'min_cup', 'min_score')
+        }),
+        (_('Rewards - Winner'), {
+            'fields': ('winner_package', 'winner_xp', 'winner_cup', 'winner_score')
+        }),
+        (_('Rewards - Loser'), {
+            'fields': ('loser_package', 'loser_xp', 'loser_cup', 'loser_score')
+        }),
+        (_('Advanced'), {
+            'fields': ('config',),
+            'classes': ('collapse',)
+        }),
+    ]
 
 @admin.register(MatchConfiguration)
 class MatchConfigurationAdmin(admin.ModelAdmin):

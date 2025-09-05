@@ -76,8 +76,8 @@ class CachableModel(BaseModel):
 
 
 class Configuration(SingletonCachableModel):
-    app_name = models.CharField(verbose_name=_("App Name"), max_length=255)
-    game_package_name = models.CharField(verbose_name=_("Game Package Name"), max_length=255)
+    app_name = models.CharField(verbose_name=_("App Name"), max_length=255, default="suji")
+    game_package_name = models.CharField(verbose_name=_("Game Package Name"), max_length=255, default="suji")
     app_version = models.CharField(verbose_name=_("App Version"), max_length=100, default='1.0.0')
     app_version_bundle = models.PositiveIntegerField(verbose_name=_("App version bundle"), default=1)
     last_bundle_version = models.PositiveIntegerField(verbose_name=_("Last bundle version"), default=1)

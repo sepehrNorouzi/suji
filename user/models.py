@@ -1,15 +1,15 @@
 import datetime
 import json
-import pickle
 import random
 from datetime import timedelta
 from typing import Union
+from uuid import uuid4
 
 from django.conf import settings
 from django.contrib.auth.models import PermissionsMixin, AbstractUser
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
-from django.db import models
+from django.db import models, connection
 from django.db.models import QuerySet
 from django.db.transaction import atomic
 from django.template.loader import render_to_string
@@ -18,9 +18,8 @@ from django.utils.html import strip_tags
 from django.utils.translation import gettext_lazy as _
 from rest_framework_simplejwt.tokens import RefreshToken, AccessToken
 
-from django.conf import settings
 from common.models import BaseModel
-from exceptions.user import ReVerifyException
+from exceptions.user import ReVerifyException, EmailAlreadyTakenError
 from shop.choices import AssetType
 from user.choices import Gender
 from user.managers import UserManager, NormalPlayerManager, GuestPlayerManager
@@ -83,6 +82,7 @@ class PlayerLuckyWheel(models.Model):
 
 
 class User(AbstractUser, PermissionsMixin, PlayerDailyReward, PlayerLuckyWheel):
+    uuid = models.UUIDField(unique=True, blank=False, null=False, db_index=True, default=uuid4, editable=False)
     email = models.EmailField(unique=True, null=True, blank=True, verbose_name=_("Email"))
     device_id = models.CharField(max_length=255, unique=True, null=True, blank=True, verbose_name=_("Device ID"))
     is_staff = models.BooleanField(default=False, verbose_name=_("Staff status"))
@@ -148,33 +148,41 @@ class User(AbstractUser, PermissionsMixin, PlayerDailyReward, PlayerLuckyWheel):
 
     @property
     def current_avatar(self):
-        if hasattr(self, 'shop_info'):
-            current = self.shop_info.current_asset(AssetType.AVATAR)
-            return current.asset if current else None
-        return None
+        shop_info = getattr(self, "shop_info", None)
+        if not shop_info:
+            return None
+        current = shop_info.current_asset(AssetType.AVATAR)
+        return current.asset if current else None
 
     @property
     def current_avatar_json(self):
         avatar = self.current_avatar
         if not avatar:
-            return dict()
+            return None
         return {
-            "avatar": {
-                "id": avatar.id,
-                "config": avatar.config,
-            }
+            "id": avatar.id,
+            "config": avatar.config,
+            'image': avatar.image.url if avatar.image else None,
         }
 
     def save(self, *args, **kwargs):
         super(User, self).save(*args, **kwargs)
         self.cache_user()
 
-    def is_in_game(self):
-        return self.games.first()
+    @classmethod
+    def get_random_users(cls, count):
+        if connection.vendor == 'postgresql':
+            return cls.objects.extra(select={'random': 'RANDOM()'}).order_by('random')[:count]
+        elif connection.vendor == 'mysql':
+            return cls.objects.extra(select={'random': 'RAND()'}).order_by('random')[:count]
+        else:
+            return cls.objects.order_by('?')[:count]
+
+    def is_in_match(self):
+        return self.match_set.filter(is_active=True).exists()
 
 
 class Player(User):
-
     class Meta:
         abstract = True
 
@@ -187,8 +195,9 @@ class Player(User):
             access_token = AccessToken.for_user(self)
             access_token.payload = {
                 **access_token.payload,
-                "profile_name": self.profile_name,
-                **self.current_avatar_json,
+                'avatar': self.current_avatar_json,
+                'uuid': self.uuid.__str__(),
+                'profile_name': self.profile_name
             }
             token = {
                 'access': str(access_token),
@@ -268,6 +277,9 @@ class GuestPlayer(Player):
 
     @atomic()
     def convert_to_normal_player(self, email: str, password: str, profile_name: str = None):
+        existing_email = NormalPlayer.objects.filter(email=email).first()
+        if existing_email:
+            raise EmailAlreadyTakenError(_("This email is already is use"))
         user = self.user_ptr
         normal_player = NormalPlayer(
             user_ptr=user,
@@ -434,65 +446,3 @@ class NormalPlayer(Player):
             raise cls.DoesNotExist
         player: NormalPlayer = player.first()
         return player.forget_password(deep_link=deep_link)
-
-
-
-class SupporterPlayerInfo(BaseModel):
-    player = models.ForeignKey(to='user.User', verbose_name=_("Player"), on_delete=models.CASCADE,
-                               related_name='supports')
-    visible = models.BooleanField(default=False, verbose_name=_("Is visible"))
-    used = models.BooleanField(default=False, verbose_name=_("Is used"))
-    reason = models.CharField(max_length=10, verbose_name=_("Reason"), )
-
-    approved = models.BooleanField(default=False, verbose_name=_("Approved"))
-    approval_date = models.DateTimeField(verbose_name=_("Approval date"), null=True, blank=True)
-
-    # Body
-    message = models.CharField(max_length=100, verbose_name=_("Message"), null=True, blank=True)
-    instagram_link = models.CharField(max_length=255, verbose_name=_("Instagram"), null=True, blank=True)
-    telegram_link = models.CharField(max_length=255, verbose_name=_("Telegram"), null=True, blank=True)
-    rubika_link = models.CharField(max_length=255, verbose_name=_("Rubika"), null=True, blank=True)
-
-    class Meta:
-        verbose_name = _("Player Support info")
-        verbose_name_plural = _("Player Support info")
-        ordering = ('-created_time',)
-
-    def approve(self):
-        self.approved = True
-        self.approval_date = timezone.now()
-        self.save()
-
-    def disapprove(self):
-        self.approved = False
-        self.approval_date = None
-        self.save()
-
-    def use(self, data: dict):
-        if self.used:
-            return
-        self.used = True
-        self.visible = data.get("visible", False)
-        self.message = data.get('message')
-        self.instagram_link = data.get('instagram_link')
-        self.telegram_link = data.get('telegram_link')
-        self.rubika_link = data.get('rubika_link')
-        self.save()
-
-    def __str__(self):
-        return f'{self.player} - {self.id}'
-
-
-class VipPlayer(BaseModel):
-    player = models.ForeignKey(to='user.User', verbose_name=_("Player"), on_delete=models.CASCADE, related_name='vip')
-    expiration_date = models.DateTimeField(verbose_name=_("Expiration date"), null=True, blank=True)
-
-    def __str__(self):
-        return f'{self.player.username} VIP info.'
-
-    class Meta:
-        verbose_name = _("VIP player")
-        verbose_name_plural = _("VIP players")
-
-    def is_expired(self):
-        return self.expiration_date and self.expiration_date < timezone.now()

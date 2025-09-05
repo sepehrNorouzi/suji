@@ -8,13 +8,13 @@ from rest_framework.pagination import PageNumberPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from user.models import NormalPlayer, GuestPlayer, User, SupporterPlayerInfo
+from exceptions.user import EmailAlreadyTakenError
+from user.models import NormalPlayer, GuestPlayer, User
 from user.permissions import IsGuestPlayer
 from user.serializers import NormalPlayerSignUpSerializer, NormalPlayerVerifySerializer, NormalPlayerSignInSerializer, \
     GuestPlayerSignUpSerializer, GuestPlayerSignInSerializer, GuestPlayerRecoverySerializer, \
     NormalPlayerForgetPasswordRequestSerializer, NormalPlayerResetPasswordSerializer, PlayerProfileSerializer, \
-    SupporterPlayerSerializer, SupporterPanelUseSerializer, SupporterRetrieveSerializer, \
-    PlayerProfileSelfRetrieveSerializer
+    PlayerProfileSelfRetrieveSerializer, GuestConvertSerializer, NormalPlayerAuthSerializer, GuestPlayerAuthSerializer
 from utils.random_functions import generate_random_string
 
 
@@ -45,8 +45,9 @@ class NormalPlayerAuthView(viewsets.GenericViewSet):
             return Response({'error': _("Invalid email.")}, status=status.HTTP_400_BAD_REQUEST)
         user: NormalPlayer = user.first()
         verified = user.verify_email(otp=data["otp"])
+        credentials = user.get_token()
         if verified:
-            return Response(data={'user': self.serializer_class(user).data, "message": _("Verified successfully")},
+            return Response(data={'user': NormalPlayerAuthSerializer(user).data, 'credentials': credentials, "message": _("Verified successfully")},
                             status=status.HTTP_200_OK)
         return Response(data={'error': _('Invalid OTP.')}, status=status.HTTP_406_NOT_ACCEPTABLE)
 
@@ -104,9 +105,10 @@ class GuestPlayerAuthView(viewsets.GenericViewSet):
         password = generate_random_string(length=10)
         try:
             user = serializer.save(password=password)
+            credentials = user.get_token()
         except IntegrityError as e:
-            return Response({'error': _("User already exists.")}, status=status.HTTP_400_BAD_REQUEST)
-        data = {**self.serializer_class(user).data, "password": password}
+            return Response({'error': _("User already exists.")}, status=status.HTTP_403_FORBIDDEN)
+        data = {'user': GuestPlayerAuthSerializer(user).data, 'credentials': credentials, "password": password}
         return Response(data=data, status=status.HTTP_201_CREATED)
 
     @action(methods=['POST'], detail=False, url_path="login", url_name="login",
@@ -137,18 +139,24 @@ class GuestPlayerAuthView(viewsets.GenericViewSet):
         return Response(data={'credentials': token, 'user': {**self.serializer_class(user).data, 'password': password}},
                         status=status.HTTP_200_OK)
 
-    @action(methods=['POST'], detail=False, url_path='convert', url_name='convert', permission_classes=[IsGuestPlayer])
+    @action(methods=['POST'], detail=False, url_path='convert', url_name='convert', permission_classes=[IsGuestPlayer],
+            serializer_class=GuestConvertSerializer)
     def guest_convert(self, request, *args, **kwargs):
         serializer = self.serializer_class(data=request.data)
-        serializer.is_valid(raise_exceptions=True)
+        serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
         player: GuestPlayer = self.request.user.player
         email = data['email']
         password = data['password']
         profile_name = data.get("profile_name")
-        normal_player: NormalPlayer = player.convert_to_normal_player(email=email, password=password,
-                                                                      profile_name=profile_name)
-        return Response(data=NormalPlayerSignUpSerializer(normal_player).data, status=status.HTTP_201_CREATED)
+        try:
+            normal_player: NormalPlayer = player.convert_to_normal_player(email=email, password=password,
+                                                                          profile_name=profile_name)
+        except EmailAlreadyTakenError as e:
+            return Response(data={"detail": _(e.__str__()), "code": 'email_in_use'}, status=status.HTTP_409_CONFLICT)
+        return Response(
+            data={"user": NormalPlayerSignUpSerializer(normal_player).data, 'message': _("OTP is sent to you.")},
+            status=status.HTTP_201_CREATED)
 
 
 class PlayerProfileView(viewsets.GenericViewSet, mixins.ListModelMixin, mixins.RetrieveModelMixin):
@@ -165,47 +173,3 @@ class PlayerProfileView(viewsets.GenericViewSet, mixins.ListModelMixin, mixins.R
         player = self.request.user
         serializer = PlayerProfileSelfRetrieveSerializer(player)
         return Response(data=serializer.data, status=status.HTTP_200_OK)
-
-    @action(methods=['GET'], detail=False, url_path='supports', url_name='supports',
-            serializer_class=SupporterRetrieveSerializer)
-    def self_support_package(self, request, *args, **kwargs):
-        user = self.request.user
-        packages = user.supports.filter(is_active=True)
-        paginator = PageNumberPagination()
-        page = paginator.paginate_queryset(packages, request)
-        return paginator.get_paginated_response(self.serializer_class(page, many=True).data)
-
-    @action(methods=['GET'], detail=True, url_path='supports', url_name='supports',
-            serializer_class=SupporterRetrieveSerializer)
-    def player_support_package(self, request, *args, **kwargs):
-        player = self.get_object()
-        packages = player.supports.filter(visible=True, approved=True, is_active=True, used=True)
-        paginator = PageNumberPagination()
-        page = paginator.paginate_queryset(packages, request)
-        return paginator.get_paginated_response(self.serializer_class(page, many=True).data)
-
-
-class SupporterPlayerView(viewsets.GenericViewSet, mixins.ListModelMixin, mixins.RetrieveModelMixin):
-    queryset = SupporterPlayerInfo.objects.filter(is_active=True, approved=True, visible=True)
-    serializer_class = SupporterPlayerSerializer
-    pagination_class = PageNumberPagination
-
-    def get_queryset(self):
-        return SupporterPlayerInfo.objects.filter(is_active=True, approved=True, visible=True).order_by(
-            "-approval_date")
-
-    def get_usable_object(self) -> SupporterPlayerInfo:
-        queryset = SupporterPlayerInfo.objects.filter(player=self.request.user, used=False)
-        lookup_url_kwarg = self.lookup_url_kwarg or self.lookup_field
-        filter_kwargs = {self.lookup_field: self.kwargs[lookup_url_kwarg]}
-        obj = get_object_or_404(queryset, **filter_kwargs)
-        return obj
-
-    @action(methods=['POST'], detail=True, url_name='use', url_path='use', serializer_class=SupporterPanelUseSerializer)
-    def use(self, request, *args, **kwargs):
-        usable_object: SupporterPlayerInfo = self.get_usable_object()
-        serializer = self.serializer_class(data=self.request.data)
-        serializer.is_valid(raise_exception=True)
-        usable_object.use(data={**serializer.validated_data})
-        usable_object.refresh_from_db()
-        return Response(data=SupporterPlayerSerializer(usable_object).data, status=status.HTTP_202_ACCEPTED)

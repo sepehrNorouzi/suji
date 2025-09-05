@@ -1,6 +1,9 @@
+from django.conf import settings
+from django.conf.urls.static import static
 from django.contrib import admin
 from django.shortcuts import redirect
 from django.urls import path, include
+from django.utils.translation import gettext_lazy as _
 from rest_framework.routers import DefaultRouter
 from common.urls import router as common_router
 from user.urls import router as user_router
@@ -10,6 +13,8 @@ from social.urls import router as social_router
 from player_statistic.urls import router as player_stats_router
 from leaderboard.urls import router as leaderboard_router
 from match.urls import router as match_router
+from suji.swagger import swagger_urlpatterns
+
 
 router = DefaultRouter()
 
@@ -22,9 +27,12 @@ router.registry.extend(player_stats_router.registry)
 router.registry.extend(leaderboard_router.registry)
 router.registry.extend(match_router.registry)
 
+
+admin.site.site_header = _('{project_name} Management Panel').format(project_name=settings.PROJECT_NAME)
+
 urlpatterns = [
     path('', lambda request: redirect(to='admin/', permenant=True)),
     path('admin/', admin.site.urls),
     path('api/', include(router.urls)),
-]
+] + swagger_urlpatterns + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
 
